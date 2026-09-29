@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   TrendingUp,
+  TrendingDown,
   Package,
   AlertTriangle,
   Receipt,
@@ -15,8 +16,14 @@ import {
   ShoppingBag,
   Users,
   Search,
-  ChevronRight,
   Eye,
+  Printer,
+  BarChart3,
+  Layers,
+  Award,
+  Sparkles,
+  ChevronRight,
+  ShieldAlert,
 } from 'lucide-react';
 import { formatCurrency, formatDate, getUnitLabel } from '../../utils/formatters';
 import { orderService } from '../../services/orderService';
@@ -26,9 +33,11 @@ import { ReceiptModal } from '../pos/ReceiptModal';
 
 export function DirectorDashboard({ products = [], categories = [], onRefresh }) {
   const [orders, setOrders] = useState([]);
+  const [orderItems, setOrderItems] = useState([]);
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState('ALL'); // 'TODAY', 'WEEK', 'ALL'
+  const [selectedPeriod, setSelectedPeriod] = useState('ALL'); // 'TODAY', 'WEEK', 'MONTH', 'ALL'
+  const [activeSubTab, setActiveSubTab] = useState('overview'); // 'overview', 'categories', 'products', 'cashiers', 'debts'
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
   const [productSearch, setProductSearch] = useState('');
 
@@ -37,11 +46,13 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
   const loadDirectorData = async () => {
     setLoading(true);
     try {
-      const [fetchedOrders, fetchedDebts] = await Promise.all([
+      const [fetchedOrders, fetchedItems, fetchedDebts] = await Promise.all([
         orderService.getAllOrders(),
+        orderService.getAllOrderItems(),
         debtService.getAllDebts(),
       ]);
       setOrders(fetchedOrders || []);
+      setOrderItems(fetchedItems || []);
       setDebts(fetchedDebts || []);
     } catch (err) {
       console.error('Director data error:', err);
@@ -61,6 +72,23 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
     toast.success("Monitoring ma'lumotlari yangilandi", 2000);
   };
 
+  // Product and Category Maps for instant lookup
+  const productMap = useMemo(() => {
+    const map = {};
+    products.forEach((p) => {
+      map[p.id] = p;
+    });
+    return map;
+  }, [products]);
+
+  const categoryMap = useMemo(() => {
+    const map = {};
+    categories.forEach((c) => {
+      map[c.id] = c.name;
+    });
+    return map;
+  }, [categories]);
+
   // Period filtering
   const filteredOrders = useMemo(() => {
     if (selectedPeriod === 'ALL') return orders;
@@ -68,20 +96,26 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const weekStart = todayStart - 7 * 24 * 60 * 60 * 1000;
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
     return orders.filter((order) => {
       const orderTime = new Date(order.created_at).getTime();
-      if (selectedPeriod === 'TODAY') {
-        return orderTime >= todayStart;
-      }
-      if (selectedPeriod === 'WEEK') {
-        return orderTime >= weekStart;
-      }
+      if (selectedPeriod === 'TODAY') return orderTime >= todayStart;
+      if (selectedPeriod === 'WEEK') return orderTime >= weekStart;
+      if (selectedPeriod === 'MONTH') return orderTime >= monthStart;
       return true;
     });
   }, [orders, selectedPeriod]);
 
-  // Financial calculations
+  const filteredOrderIds = useMemo(() => {
+    return new Set(filteredOrders.map((o) => o.id));
+  }, [filteredOrders]);
+
+  const filteredItems = useMemo(() => {
+    return orderItems.filter((item) => filteredOrderIds.has(item.order));
+  }, [orderItems, filteredOrderIds]);
+
+  // Comprehensive Financial & Business Metrics
   const stats = useMemo(() => {
     let totalRevenue = 0;
     let totalCash = 0;
@@ -96,43 +130,57 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
         return;
       }
       completedCount++;
-      const tot = Number(o.total_amount) || 0;
-      const c = Number(o.paid_cash) || 0;
-      const card = Number(o.paid_card) || 0;
-      const d = Number(o.paid_debt) || 0;
-
-      totalRevenue += tot;
-      totalCash += c;
-      totalCard += card;
-      totalDebt += d;
+      totalRevenue += Number(o.total_amount) || 0;
+      totalCash += Number(o.paid_cash) || 0;
+      totalCard += Number(o.paid_card) || 0;
+      totalDebt += Number(o.paid_debt) || 0;
     });
 
     const averageCheck = completedCount > 0 ? totalRevenue / completedCount : 0;
 
-    // Inventory valuation
-    let totalInventoryValue = 0;
+    // Inventory Valuation
+    let totalInventoryRetail = 0;
+    let totalInventoryCost = 0;
     let totalStockUnits = 0;
     let outOfStockCount = 0;
     let lowStockCount = 0;
 
     products.forEach((p) => {
       const stock = Number(p.stock_quantity) || 0;
-      const price = Number(p.sell_price) || 0;
+      const sell = Number(p.sell_price) || 0;
+      const cost = Number(p.cost_price) || 0;
+
       totalStockUnits += stock;
-      totalInventoryValue += stock * price;
+      totalInventoryRetail += stock * sell;
+      totalInventoryCost += stock * cost;
 
       if (stock <= 0) outOfStockCount++;
       else if (stock < 5) lowStockCount++;
     });
 
-    // Total outstanding debt
-    let totalPendingDebt = 0;
-    debts.forEach((debt) => {
-      const amount = Number(debt.amount) || 0;
-      const paid = Number(debt.paid_amount) || 0;
-      const remaining = Math.max(0, amount - paid);
-      totalPendingDebt += remaining;
+    // Estimated Profit Calculation from sold items
+    let estimatedCOGS = 0; // Cost of Goods Sold
+    filteredItems.forEach((item) => {
+      const p = productMap[item.product];
+      const qty = Number(item.quantity) || 0;
+      const cost = Number(item.cost_price || p?.cost_price) || 0;
+      estimatedCOGS += qty * cost;
     });
+
+    // If order items exist use item COGS, else estimate standard 20% margin
+    const estimatedProfit = estimatedCOGS > 0
+      ? Math.max(0, totalRevenue - estimatedCOGS)
+      : totalRevenue * 0.22;
+    const profitMargin = totalRevenue > 0 ? Math.round((estimatedProfit / totalRevenue) * 100) : 0;
+
+    // Total outstanding debt
+    let totalGivenDebt = 0;
+    let totalPaidDebt = 0;
+    debts.forEach((debt) => {
+      totalGivenDebt += Number(debt.amount) || 0;
+      totalPaidDebt += Number(debt.paid_amount) || 0;
+    });
+    const totalPendingDebt = Math.max(0, totalGivenDebt - totalPaidDebt);
 
     return {
       totalRevenue,
@@ -142,104 +190,234 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
       completedCount,
       returnedCount,
       averageCheck,
-      totalInventoryValue,
+      totalInventoryRetail,
+      totalInventoryCost,
       totalStockUnits,
       outOfStockCount,
       lowStockCount,
+      estimatedProfit,
+      profitMargin,
       totalPendingDebt,
+      totalGivenDebt,
+      totalPaidDebt,
     };
-  }, [filteredOrders, products, debts]);
+  }, [filteredOrders, filteredItems, products, debts, productMap]);
 
-  // Low stock products
-  const lowStockProducts = useMemo(() => {
-    return products
-      .filter((p) => (Number(p.stock_quantity) || 0) < 5)
-      .sort((a, b) => (Number(a.stock_quantity) || 0) - (Number(b.stock_quantity) || 0));
-  }, [products]);
+  // 1. CATEGORY ANALYTICS BREAKDOWN
+  const categoryAnalytics = useMemo(() => {
+    const catStats = {};
 
-  // Category map
-  const categoryMap = useMemo(() => {
-    const map = {};
     categories.forEach((c) => {
-      map[c.id] = c.name;
+      catStats[c.id] = {
+        id: c.id,
+        name: c.name,
+        revenue: 0,
+        itemsSold: 0,
+        productCount: 0,
+        stockUnits: 0,
+        stockValue: 0,
+      };
     });
-    return map;
-  }, [categories]);
 
-  // Filtered products list for inventory monitoring
-  const filteredProductsList = useMemo(() => {
-    if (!productSearch.trim()) return products.slice(0, 15);
-    const q = productSearch.toLowerCase();
-    return products.filter(
-      (p) =>
-        p.name?.toLowerCase().includes(q) ||
-        p.barcode?.toLowerCase().includes(q)
+    // Add uncategorized container
+    catStats['other'] = {
+      id: 'other',
+      name: 'Boshqa / Umumiy',
+      revenue: 0,
+      itemsSold: 0,
+      productCount: 0,
+      stockUnits: 0,
+      stockValue: 0,
+    };
+
+    // Calculate product stock per category
+    products.forEach((p) => {
+      const catId = p.category || 'other';
+      if (!catStats[catId]) {
+        catStats[catId] = {
+          id: catId,
+          name: categoryMap[catId] || 'Umumiy',
+          revenue: 0,
+          itemsSold: 0,
+          productCount: 0,
+          stockUnits: 0,
+          stockValue: 0,
+        };
+      }
+      const stock = Number(p.stock_quantity) || 0;
+      const sell = Number(p.sell_price) || 0;
+      catStats[catId].productCount++;
+      catStats[catId].stockUnits += stock;
+      catStats[catId].stockValue += stock * sell;
+    });
+
+    // Calculate sales per category from filteredItems
+    filteredItems.forEach((item) => {
+      const p = productMap[item.product];
+      const catId = p?.category || 'other';
+      if (catStats[catId]) {
+        const qty = Number(item.quantity) || 0;
+        const total = Number(item.price || p?.sell_price) * qty;
+        catStats[catId].itemsSold += qty;
+        catStats[catId].revenue += total;
+      }
+    });
+
+    // If orderItems is empty, estimate from orders primary product
+    if (filteredItems.length === 0 && filteredOrders.length > 0) {
+      filteredOrders.forEach((o) => {
+        const p = productMap[o.product];
+        const catId = p?.category || 'other';
+        if (catStats[catId]) {
+          catStats[catId].revenue += Number(o.total_amount) || 0;
+          catStats[catId].itemsSold += 1;
+        }
+      });
+    }
+
+    const list = Object.values(catStats).filter(
+      (c) => c.productCount > 0 || c.revenue > 0
     );
-  }, [products, productSearch]);
+
+    list.sort((a, b) => b.revenue - a.revenue);
+    return list;
+  }, [categories, products, filteredItems, filteredOrders, productMap, categoryMap]);
+
+  // 2. PRODUCT PERFORMANCE (TOP SELLERS & DEAD STOCK)
+  const productAnalytics = useMemo(() => {
+    const map = {};
+
+    products.forEach((p) => {
+      map[p.id] = {
+        product: p,
+        totalSold: 0,
+        totalRevenue: 0,
+        categoryName: categoryMap[p.category] || 'Umumiy',
+      };
+    });
+
+    filteredItems.forEach((item) => {
+      if (map[item.product]) {
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.price || map[item.product].product.sell_price) || 0;
+        map[item.product].totalSold += qty;
+        map[item.product].totalRevenue += qty * price;
+      }
+    });
+
+    // Fallback if order items are flat
+    if (filteredItems.length === 0 && filteredOrders.length > 0) {
+      filteredOrders.forEach((o) => {
+        if (map[o.product]) {
+          map[o.product].totalSold += 1;
+          map[o.product].totalRevenue += Number(o.total_amount) || 0;
+        }
+      });
+    }
+
+    const all = Object.values(map);
+    const topSellers = [...all].sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const lowStock = products
+      .filter((p) => Number(p.stock_quantity) < 5)
+      .sort((a, b) => Number(a.stock_quantity) - Number(b.stock_quantity));
+
+    return {
+      topSellers,
+      lowStock,
+    };
+  }, [products, filteredItems, filteredOrders, categoryMap]);
+
+  // 3. CASHIER / DEVICE TERMINAL BREAKDOWN
+  const cashierAnalytics = useMemo(() => {
+    const devices = {};
+
+    filteredOrders.forEach((o) => {
+      const dev = o.device_id || 'Asosiy Kassa';
+      if (!devices[dev]) {
+        devices[dev] = {
+          name: dev,
+          orderCount: 0,
+          revenue: 0,
+          cash: 0,
+          card: 0,
+          debt: 0,
+        };
+      }
+      devices[dev].orderCount++;
+      devices[dev].revenue += Number(o.total_amount) || 0;
+      devices[dev].cash += Number(o.paid_cash) || 0;
+      devices[dev].card += Number(o.paid_card) || 0;
+      devices[dev].debt += Number(o.paid_debt) || 0;
+    });
+
+    return Object.values(devices);
+  }, [filteredOrders]);
+
+  // Print Executive Report handler
+  const handlePrintReport = () => {
+    window.print();
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Top Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Top Executive Header */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
         
         <div className="space-y-2 relative z-10">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
-              Direktor Kabineti
+          <div className="flex items-center gap-2.5">
+            <span className="px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-400/30">
+              Direktor Analitika & Tahlil Portali
             </span>
-            <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
+            <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Jonli Monitoring
+              Jonli Maʼlumotlar
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Magazin Umumiy Boshqaruv va Tahlil
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            Magazin Umumiy Biznes & Savdo Dashboardi
           </h1>
-          <p className="text-sm text-slate-300 max-w-xl">
-            Sotuvlar, kassa tushumi, ombordagi tovarlar qiymati va barcha nasiya qarzdorliklarini real vaqtda toʻliq nazorat qiling.
+          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+            Kategoriyalar daromadi, mahsulotlar reytingi, ombor tovarlari qiymati, sof foyda va nasiyadorlar harakatini toʻliq nazorat qiling.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 relative z-10">
-          {/* Period buttons */}
+        <div className="flex flex-wrap items-center gap-2.5 relative z-10">
+          {/* Period selector */}
           <div className="bg-slate-800/80 backdrop-blur-md p-1 rounded-2xl border border-slate-700/60 flex items-center">
-            <button
-              onClick={() => setSelectedPeriod('TODAY')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                selectedPeriod === 'TODAY'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              Bugun
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('WEEK')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                selectedPeriod === 'WEEK'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              Haftalik
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('ALL')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                selectedPeriod === 'ALL'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              Barchasi
-            </button>
+            {[
+              { id: 'TODAY', label: 'Bugun' },
+              { id: 'WEEK', label: 'Hafta' },
+              { id: 'MONTH', label: 'Bu oy' },
+              { id: 'ALL', label: 'Barchasi' },
+            ].map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedPeriod(p.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  selectedPeriod === p.id
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
+
+          <button
+            onClick={handlePrintReport}
+            title="Hisobotni chop etish"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700/60 transition-all cursor-pointer"
+          >
+            <Printer className="w-3.5 h-3.5 text-purple-300" />
+            <span className="hidden sm:inline">Chop etish</span>
+          </button>
 
           <button
             onClick={handleRefresh}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-indigo-600/90 hover:bg-indigo-600 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Yangilash</span>
@@ -247,13 +425,13 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* Main KPI Financial Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Revenue */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between group hover:border-indigo-300 transition-all">
+        {/* 1. Jami Savdo (Revenue) */}
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between hover:border-purple-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              {selectedPeriod === 'TODAY' ? 'Bugungi Tushum' : selectedPeriod === 'WEEK' ? 'Haftalik Tushum' : 'Jami Tushum'}
+              Yalpi Savdo Tushumi
             </span>
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
               <TrendingUp className="w-5 h-5" />
@@ -280,11 +458,34 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
           </div>
         </div>
 
-        {/* Inventory Total Value */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between group hover:border-indigo-300 transition-all">
+        {/* 2. Kutilayotgan Sof Foyda (Gross Profit) */}
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between hover:border-purple-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Ombor (Sklad) Qiymati
+              Kutilayotgan Sof Foyda
+            </span>
+            <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+              <Sparkles className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-purple-700 tracking-tight">
+              {formatCurrency(stats.estimatedProfit)}
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Rentabellik marjasi:</span>
+              <strong className="text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-lg">
+                ~{stats.profitMargin}%
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Ombor (Sklad) Qiymati */}
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between hover:border-purple-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Sklad Tovarlar Qiymati
             </span>
             <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
               <Package className="w-5 h-5" />
@@ -292,20 +493,20 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {formatCurrency(stats.totalInventoryValue)}
+              {formatCurrency(stats.totalInventoryRetail)}
             </div>
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Jami mahsulotlar: <strong className="text-slate-800">{products.length} tur</strong></span>
-              <span>Qoldiq: <strong className="text-slate-800">{stats.totalStockUnits} dona</strong></span>
+              <span>{products.length} xil tovar</span>
+              <span className="font-bold text-slate-700">{stats.totalStockUnits} dona qoldiq</span>
             </div>
           </div>
         </div>
 
-        {/* Outstanding Receivables (Debts) */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between group hover:border-indigo-300 transition-all">
+        {/* 4. Nasiyalar Balansi */}
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between hover:border-purple-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Nasiya Qarzdorliklari
+              Mijozlar Qarzdorligi
             </span>
             <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
               <BookOpen className="w-5 h-5" />
@@ -316,78 +517,420 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
               {formatCurrency(stats.totalPendingDebt)}
             </div>
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Mijozlar qarzi: <strong className="text-slate-800">{debts.length} ta yozuv</strong></span>
-              <span className="text-amber-600 font-semibold">Qaytarilishi kerak</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Checks & AOV */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between group hover:border-indigo-300 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Cheklar va Oʻrtacha Chek
-            </span>
-            <div className="w-10 h-10 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center font-bold">
-              <Receipt className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {stats.completedCount} <span className="text-sm font-semibold text-slate-500">ta chek</span>
-            </div>
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Oʻrtacha chek:</span>
-              <strong className="text-indigo-600 text-sm font-bold">{formatCurrency(stats.averageCheck)}</strong>
+              <span>Qarzlar soni: {debts.length} ta</span>
+              <span className="text-amber-600 font-bold">Qaytarilishi shart</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Low Stock Warning Section */}
-      {lowStockProducts.length > 0 && (
-        <div className="bg-amber-50/70 border border-amber-200/80 rounded-3xl p-5 shadow-xs">
-          <div className="flex items-center justify-between gap-4 mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center">
-                <AlertTriangle className="w-4 h-4" />
+      {/* Navigation Sub-Tabs for Deep Analytics */}
+      <div className="bg-white rounded-2xl p-1.5 border border-slate-200 shadow-xs flex items-center gap-1 overflow-x-auto">
+        {[
+          { id: 'overview', label: 'Umumiy Tahlil', icon: BarChart3 },
+          { id: 'categories', label: 'Kategoriyalar Tahlili', icon: Layers },
+          { id: 'products', label: 'Mahsulotlar Reytingi', icon: Package },
+          { id: 'cashiers', label: 'Kassirlar Faoliyati', icon: Users },
+          { id: 'debts', label: 'Nasiyalar Monitoringi', icon: BookOpen },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeSubTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                isActive
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* SUB-TAB 1: OVERVIEW */}
+      {activeSubTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Low stock alert */}
+          {stats.lowStockCount > 0 && (
+            <div className="bg-amber-50 border border-amber-200/90 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-amber-900">
+                    Omborda {stats.lowStockCount} ta mahsulot zaxirasi tugamoqda!
+                  </h3>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Ushbu tovarlar soni 5 tadan kam qolgan yoki butunlay tugagan. Skladni toʻldirish tavsiya etiladi.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-amber-900">
-                  Omborda Kam Qolgan Mahsulotlar ({lowStockProducts.length})
-                </h3>
-                <p className="text-xs text-amber-700">
-                  Ushbu tovarlar tugash arafasida yoki tugagan. Zudlik bilan yangi partiya buyurtma qilish tavsiya etiladi.
-                </p>
+              <button
+                onClick={() => setActiveSubTab('products')}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
+              >
+                Kam tovarlarni koʻrish
+              </button>
+            </div>
+          )}
+
+          {/* Grid: Category distribution & Recent checks */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left 6 cols: Category Share */}
+            <div className="lg:col-span-6 bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Kategoriyalar boʻyicha Tushum Ulushi
+                    </h3>
+                    <span className="text-[11px] text-slate-400">Eng koʻp foyda keltirayotgan sohalar</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveSubTab('categories')}
+                  className="text-xs font-bold text-purple-600 hover:underline cursor-pointer"
+                >
+                  Barchasi →
+                </button>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                {categoryAnalytics.slice(0, 5).map((cat) => {
+                  const share = stats.totalRevenue > 0
+                    ? Math.round((cat.revenue / stats.totalRevenue) * 100)
+                    : 0;
+                  return (
+                    <div key={cat.id} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-800">{cat.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-slate-900">
+                            {formatCurrency(cat.revenue)}
+                          </span>
+                          <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md">
+                            {share}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.max(5, share)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right 6 cols: Recent orders stream */}
+            <div className="lg:col-span-6 bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Soʻnggi Kassa Tranzaksiyalari
+                    </h3>
+                    <span className="text-[11px] text-slate-400">Magazinda urilgan oxirgi cheklar</span>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-slate-400">
+                  {filteredOrders.length} ta chek
+                </span>
+              </div>
+
+              <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
+                {filteredOrders.slice(0, 6).map((order) => (
+                  <div key={order.id} className="py-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-700">
+                        #{order.id}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">
+                          Chek #{order.id}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {formatDate(order.created_at)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="text-xs font-black text-slate-900">
+                          {formatCurrency(order.total_amount)}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-medium">
+                          {Number(order.paid_cash) > 0 && 'Naqd '}
+                          {Number(order.paid_card) > 0 && 'Karta '}
+                          {Number(order.paid_debt) > 0 && 'Nasiya'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedReceiptOrder(order)}
+                        className="p-1.5 text-slate-400 hover:text-purple-600 rounded-lg cursor-pointer"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {lowStockProducts.slice(0, 6).map((prod) => (
-              <div
-                key={prod.id}
-                className="bg-white rounded-2xl p-3 border border-amber-200 flex flex-col justify-between"
-              >
+      {/* SUB-TAB 2: CATEGORY ANALYTICS */}
+      {activeSubTab === 'categories' && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Kategoriyalar boʻyicha Toʻliq Tahlil
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Har bir boʻlimning magazin daromadidagi ulushi, tovarlar soni va ombordagi qoldiq qiymati
+              </p>
+            </div>
+            <span className="text-xs font-bold px-3 py-1.5 bg-purple-50 text-purple-700 rounded-xl">
+              Jami toifalar: {categories.length} ta
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50/75 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <tr>
+                  <th className="px-5 py-3.5">Kategoriya Nomi</th>
+                  <th className="px-4 py-3.5 text-center">Tovarlar Soni</th>
+                  <th className="px-4 py-3.5 text-center">Sotilgan Donalar</th>
+                  <th className="px-4 py-3.5 text-right">Keltirgan Tushum</th>
+                  <th className="px-4 py-3.5 text-center">Savdodagi Ulushi</th>
+                  <th className="px-5 py-3.5 text-right">Sklad Qoldiq Qiymati</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {categoryAnalytics.map((cat) => {
+                  const share = stats.totalRevenue > 0
+                    ? Math.round((cat.revenue / stats.totalRevenue) * 100)
+                    : 0;
+                  return (
+                    <tr key={cat.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-5 py-4">
+                        <div className="font-bold text-slate-900">{cat.name}</div>
+                        <div className="text-[11px] text-slate-400">
+                          {cat.stockUnits} dona omborda
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-center font-bold text-slate-700">
+                        {cat.productCount} xil
+                      </td>
+                      <td className="px-4 py-4 text-center font-bold text-indigo-600">
+                        {cat.itemsSold} dona
+                      </td>
+                      <td className="px-4 py-4 text-right font-black text-slate-900">
+                        {formatCurrency(cat.revenue)}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className="inline-block px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-black rounded-lg">
+                          {share}%
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right font-bold text-slate-700">
+                        {formatCurrency(cat.stockValue)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 3: PRODUCT PERFORMANCE & BEST SELLERS */}
+      {activeSubTab === 'products' && (
+        <div className="space-y-6">
+          {/* Search bar */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative flex-1 w-full">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Mahsulot nomi yoki shtrix-kod boʻyicha qidirish..."
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-purple-500 focus:bg-white"
+              />
+            </div>
+            <span className="text-xs font-bold text-slate-500 shrink-0">
+              Jami: {products.length} ta mahsulot
+            </span>
+          </div>
+
+          {/* Best Sellers Grid */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Award className="w-4 h-4" />
+                </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block truncate">
-                    {categoryMap[prod.category] || 'Umumiy'}
-                  </span>
-                  <span className="text-xs font-bold text-slate-800 line-clamp-1 block">
-                    {prod.name}
+                  <h3 className="text-base font-bold text-slate-900">
+                    Eng Koʻp Sotilgan Top Mahsulotlar Reytingi
+                  </h3>
+                  <span className="text-xs text-slate-400">Daromad boʻyicha yetakchi tovarlar</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50/75 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <tr>
+                    <th className="px-4 py-3.5 text-center">Oʻrin</th>
+                    <th className="px-5 py-3.5">Mahsulot Nomi</th>
+                    <th className="px-4 py-3.5">Kategoriya</th>
+                    <th className="px-4 py-3.5 text-right">Sotuv Narxi</th>
+                    <th className="px-4 py-3.5 text-center">Sotilgan Miqdor</th>
+                    <th className="px-4 py-3.5 text-right">Jami Tushum</th>
+                    <th className="px-5 py-3.5 text-center">Ombor Qoldigʻi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {productAnalytics.topSellers
+                    .filter((item) => {
+                      if (!productSearch.trim()) return true;
+                      const q = productSearch.toLowerCase();
+                      return (
+                        item.product.name?.toLowerCase().includes(q) ||
+                        item.product.barcode?.toLowerCase().includes(q)
+                      );
+                    })
+                    .slice(0, 20)
+                    .map((item, index) => {
+                      const stock = Number(item.product.stock_quantity) || 0;
+                      const isLow = stock < 5;
+                      const isOut = stock <= 0;
+
+                      return (
+                        <tr key={item.product.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-4 py-3.5 text-center">
+                            <span
+                              className={`w-6 h-6 inline-flex items-center justify-center rounded-full text-xs font-black ${
+                                index === 0
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : index === 1
+                                  ? 'bg-slate-200 text-slate-700'
+                                  : index === 2
+                                  ? 'bg-orange-100 text-orange-800'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              {index + 1}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <div className="font-bold text-slate-900">{item.product.name}</div>
+                            {item.product.barcode && (
+                              <div className="text-[10px] font-mono text-slate-400">
+                                #{item.product.barcode}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-slate-600">
+                            {item.categoryName}
+                          </td>
+                          <td className="px-4 py-3.5 text-right font-bold text-slate-900">
+                            {formatCurrency(item.product.sell_price)}
+                          </td>
+                          <td className="px-4 py-3.5 text-center font-bold text-purple-700">
+                            {item.totalSold} {getUnitLabel(item.product.unit)}
+                          </td>
+                          <td className="px-4 py-3.5 text-right font-black text-slate-900">
+                            {formatCurrency(item.totalRevenue)}
+                          </td>
+                          <td className="px-5 py-3.5 text-center">
+                            <span
+                              className={`text-xs font-black px-2.5 py-1 rounded-lg ${
+                                isOut
+                                  ? 'bg-rose-100 text-rose-700'
+                                  : isLow
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-emerald-100 text-emerald-700'
+                              }`}
+                            >
+                              {stock} {getUnitLabel(item.product.unit)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 4: CASHIERS & TERMINALS */}
+      {activeSubTab === 'cashiers' && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">
+              Kassirlar va Kassa Qurilmalari Faoliyati
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Har bir kassa apparatining kunlik va davriy savdo hajmi, naqd va karta orqali tushumi
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {cashierAnalytics.map((dev) => (
+              <div
+                key={dev.name}
+                className="bg-slate-50/70 border border-slate-200 rounded-3xl p-5 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
+                      POS
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">{dev.name}</h4>
+                      <span className="text-[10px] text-slate-400">Kassa terminali</span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md">
+                    {dev.orderCount} ta chek
                   </span>
                 </div>
-                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-500">Qoldiq:</span>
-                  <span
-                    className={`text-xs font-black px-1.5 py-0.5 rounded-md ${
-                      Number(prod.stock_quantity) <= 0
-                        ? 'bg-rose-100 text-rose-700'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}
-                  >
-                    {prod.stock_quantity} {getUnitLabel(prod.unit)}
-                  </span>
+
+                <div className="pt-2 border-t border-slate-200/60">
+                  <div className="text-xl font-black text-slate-900">
+                    {formatCurrency(dev.revenue)}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-slate-500">
+                    <div>Naqd: <strong className="text-slate-700 block">{formatCurrency(dev.cash)}</strong></div>
+                    <div>Karta: <strong className="text-indigo-600 block">{formatCurrency(dev.card)}</strong></div>
+                    <div>Nasiya: <strong className="text-amber-600 block">{formatCurrency(dev.debt)}</strong></div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -395,172 +938,90 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
         </div>
       )}
 
-      {/* Two columns: Recent Sales Feed & Live Inventory Watch */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Live Orders & Cashier Feed */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                <Receipt className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Soʻnggi Sotuvlar va Kassirlar Monitoringi
-                </h3>
-                <span className="text-xs text-slate-400">
-                  Magazinda amalga oshirilgan oxirgi kassa cheklari
-                </span>
-              </div>
+      {/* SUB-TAB 5: DEBTS & RECEIVABLES */}
+      {activeSubTab === 'debts' && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Nasiyalar va Qarzdorliklar Monitoringi
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Mijozlarga berilgan jami qarzlar, qoplangan toʻlovlar va qolgan haqiqiy balans
+              </p>
             </div>
-            <span className="text-xs font-bold text-slate-400">
-              Jami: {filteredOrders.length} ta
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold px-3 py-1.5 bg-amber-50 text-amber-700 rounded-xl">
+                Qolgan qarz: {formatCurrency(stats.totalPendingDebt)}
+              </span>
+            </div>
           </div>
 
-          <div className="divide-y divide-slate-100 max-h-[460px] overflow-y-auto">
-            {filteredOrders.length === 0 ? (
-              <div className="py-12 text-center text-slate-400">
-                <ShoppingBag className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                <p className="text-sm font-semibold text-slate-600">Tanlangan davrda cheklar yoʻq</p>
-              </div>
-            ) : (
-              filteredOrders.slice(0, 15).map((order) => {
-                const isReturned = order.status === 'RETURNED';
-                return (
-                  <div
-                    key={order.id}
-                    className="py-3.5 flex items-center justify-between hover:bg-slate-50/80 px-2 rounded-xl transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${
-                          isReturned
-                            ? 'bg-rose-50 text-rose-600'
-                            : 'bg-emerald-50 text-emerald-600'
-                        }`}
-                      >
-                        #{order.id}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-800">
-                            Chek #{order.id}
-                          </span>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50/75 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <tr>
+                  <th className="px-5 py-3.5">№ ID</th>
+                  <th className="px-4 py-3.5">Mijoz (User ID)</th>
+                  <th className="px-4 py-3.5 text-right">Berilgan Nasiya</th>
+                  <th className="px-4 py-3.5 text-right">Toʻlangan Summa</th>
+                  <th className="px-4 py-3.5 text-right">Qoldiq Qarz</th>
+                  <th className="px-5 py-3.5 text-center">Holati</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {debts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-400">
+                      Nasiyalar mavjud emas
+                    </td>
+                  </tr>
+                ) : (
+                  debts.map((debt) => {
+                    const amount = Number(debt.amount) || 0;
+                    const paid = Number(debt.paid_amount) || 0;
+                    const remaining = Math.max(0, amount - paid);
+                    const isClosed = remaining <= 0;
+
+                    return (
+                      <tr key={debt.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-5 py-3.5 font-mono text-xs text-slate-500">
+                          #{debt.id}
+                        </td>
+                        <td className="px-4 py-3.5 font-bold text-slate-800">
+                          Mijoz #{debt.user}
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-bold text-slate-900">
+                          {formatCurrency(amount)}
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-bold text-emerald-600">
+                          {formatCurrency(paid)}
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-black text-amber-600">
+                          {formatCurrency(remaining)}
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
                           <span
-                            className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md ${
-                              isReturned
-                                ? 'bg-rose-100 text-rose-700'
-                                : 'bg-emerald-100 text-emerald-700'
+                            className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
+                              isClosed
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-amber-100 text-amber-700'
                             }`}
                           >
-                            {isReturned ? 'QAYTARILGAN' : 'MUVAFFAQIYATLI'}
+                            {isClosed ? 'YOPILGAN' : 'QARZDORLIK MAVJUD'}
                           </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
-                          <Clock className="w-3 h-3" />
-                          <span>{formatDate(order.created_at)}</span>
-                          {order.device_id && (
-                            <span className="text-indigo-500 font-mono text-[10px]">
-                              • Kassa: {order.device_id}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="text-sm font-black text-slate-900">
-                          {formatCurrency(order.total_amount)}
-                        </div>
-                        <div className="flex items-center gap-1.5 justify-end text-[10px] text-slate-500 font-medium">
-                          {Number(order.paid_cash) > 0 && <span>Naqd</span>}
-                          {Number(order.paid_card) > 0 && <span>Karta</span>}
-                          {Number(order.paid_debt) > 0 && (
-                            <span className="text-amber-600 font-bold">Nasiya</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => setSelectedReceiptOrder(order)}
-                        title="Chekni koʻrish"
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
+      )}
 
-        {/* Right 1 Col: Sklad & Inventory Monitoring (Read-Only) */}
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center font-bold">
-                <Package className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Sklad Nazorati</h3>
-                <span className="text-xs text-slate-400">Tovarlar qoldigʻi va narxlari</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Mahsulot yoki shtrix-kod qidirish..."
-              value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white"
-            />
-          </div>
-
-          <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto">
-            {filteredProductsList.map((prod) => {
-              const stock = Number(prod.stock_quantity) || 0;
-              const isLow = stock < 5;
-              const isOut = stock <= 0;
-
-              return (
-                <div key={prod.id} className="py-2.5 flex items-center justify-between">
-                  <div className="pr-2 min-w-0">
-                    <span className="text-xs font-bold text-slate-800 truncate block">
-                      {prod.name}
-                    </span>
-                    <span className="text-[11px] font-semibold text-indigo-600 block">
-                      {formatCurrency(prod.sell_price)}
-                    </span>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span
-                      className={`text-xs font-black px-2 py-0.5 rounded-lg ${
-                        isOut
-                          ? 'bg-rose-100 text-rose-700'
-                          : isLow
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {stock} {getUnitLabel(prod.unit)}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Receipt Modal for Director Preview */}
+      {/* Modal for Order Receipt details */}
       {selectedReceiptOrder && (
         <ReceiptModal
           isOpen={true}
