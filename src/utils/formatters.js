@@ -32,6 +32,10 @@ export function formatDateTime(isoString) {
   }
 }
 
+export function formatDate(isoString) {
+  return formatDateTime(isoString);
+}
+
 export function getUnitLabel(unit) {
   switch (unit) {
     case 'KG': return 'kg';

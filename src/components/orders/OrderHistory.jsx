@@ -5,7 +5,7 @@ import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Modal } from '../ui/Modal';
 import { ReceiptText, RotateCcw, Search, Eye, CheckCircle2, AlertOctagon } from 'lucide-react';
 
-export function OrderHistory({ products = [] }) {
+export function OrderHistory({ products = [], readOnly = false }) {
   const [orders, setOrders] = useState([]);
   const [orderItems, setOrderItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +141,7 @@ export function OrderHistory({ products = [] }) {
                       <button onClick={() => { setSelectedOrder(order); setIsDetailOpen(true); }} className="p-1.5 text-slate-400 hover:text-indigo-600 cursor-pointer">
                         <Eye className="w-4 h-4" />
                       </button>
-                      {order.status !== 'RETURNED' && (
+                      {order.status !== 'RETURNED' && !readOnly && (
                         <button onClick={() => handleReturnOrder(order)} disabled={returningId === order.id} className="px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg cursor-pointer">
                           Qaytarish
                         </button>

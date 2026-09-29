@@ -16,7 +16,7 @@ import {
   Layers,
 } from 'lucide-react';
 
-export function ProductManager({ products = [], categories = [], onProductsUpdated }) {
+export function ProductManager({ products = [], categories = [], onProductsUpdated, readOnly = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -104,29 +104,35 @@ export function ProductManager({ products = [], categories = [], onProductsUpdat
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Mahsulotlar va Ombor</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            {readOnly ? "Ombordagi Tovarlar Qoldig'i" : "Mahsulotlar va Ombor"}
+          </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Barcha tovarlar, narxlar, qoldiqlar va kategoriyalarni boshqarish
+            {readOnly
+              ? "Barcha tovarlar narxlari va ombordagi mavjud qoldiq soni (Faqat ko'rish)"
+              : "Barcha tovarlar, narxlar, qoldiqlar va kategoriyalarni boshqarish"}
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => setIsCategoryModalOpen(true)}
-            className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
-          >
-            <Layers className="w-4 h-4 text-slate-500" />
-            <span>Kategoriyalar ({categories.length})</span>
-          </button>
+        {!readOnly && (
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+            >
+              <Layers className="w-4 h-4 text-slate-500" />
+              <span>Kategoriyalar ({categories.length})</span>
+            </button>
 
-          <button
-            onClick={handleCreate}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Yangi mahsulot</span>
-          </button>
-        </div>
+            <button
+              onClick={handleCreate}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Yangi mahsulot</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3">
@@ -179,17 +185,17 @@ export function ProductManager({ products = [], categories = [], onProductsUpdat
                 <th className="px-4 py-3.5">Shtrix-kod</th>
                 <th className="px-4 py-3.5">Birlik</th>
                 <th className="px-4 py-3.5 text-right">Sotuv narxi</th>
-                <th className="px-4 py-3.5 text-right">Tannarx</th>
+                {!readOnly && <th className="px-4 py-3.5 text-right">Tannarx</th>}
                 <th className="px-4 py-3.5 text-center">Ombor qoldig'i</th>
                 <th className="px-4 py-3.5 text-center">Tezkor</th>
                 <th className="px-4 py-3.5 text-center">Holat</th>
-                <th className="px-5 py-3.5 text-right">Amallar</th>
+                {!readOnly && <th className="px-5 py-3.5 text-right">Amallar</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-slate-400">
+                  <td colSpan={readOnly ? 8 : 10} className="p-8 text-center text-slate-400">
                     <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     Hech qanday mahsulot topilmadi
                   </td>
@@ -226,36 +232,52 @@ export function ProductManager({ products = [], categories = [], onProductsUpdat
                         {formatCurrency(p.sell_price)}
                       </td>
 
-                      <td className="px-4 py-3.5 text-right text-xs text-slate-400">
-                        {formatCurrency(p.cost_price)}
-                      </td>
+                      {!readOnly && (
+                        <td className="px-4 py-3.5 text-right text-xs text-slate-400">
+                          {formatCurrency(p.cost_price)}
+                        </td>
+                      )}
 
                       <td className="px-4 py-3.5 text-center">
-                        <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg">
-                          <button
-                            onClick={() => handleQuickStock(p, -1)}
-                            className="w-5 h-5 flex items-center justify-center rounded bg-white text-slate-600 hover:bg-slate-200 text-xs font-bold cursor-pointer"
-                          >
-                            -
-                          </button>
+                        {readOnly ? (
                           <span
-                            className={`text-xs font-bold px-1.5 ${
+                            className={`text-xs font-bold px-2 py-1 rounded-lg ${
                               stock > 10
-                                ? 'text-emerald-700'
+                                ? 'bg-emerald-50 text-emerald-700'
                                 : stock > 0
-                                ? 'text-amber-700'
-                                : 'text-rose-700'
+                                ? 'bg-amber-50 text-amber-700'
+                                : 'bg-rose-50 text-rose-700'
                             }`}
                           >
-                            {stock}
+                            {stock} {getUnitLabel(p.unit)}
                           </span>
-                          <button
-                            onClick={() => handleQuickStock(p, 1)}
-                            className="w-5 h-5 flex items-center justify-center rounded bg-white text-slate-600 hover:bg-slate-200 text-xs font-bold cursor-pointer"
-                          >
-                            +
-                          </button>
-                        </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-lg">
+                            <button
+                              onClick={() => handleQuickStock(p, -1)}
+                              className="w-5 h-5 flex items-center justify-center rounded bg-white text-slate-600 hover:bg-slate-200 text-xs font-bold cursor-pointer"
+                            >
+                              -
+                            </button>
+                            <span
+                              className={`text-xs font-bold px-1.5 ${
+                                stock > 10
+                                  ? 'text-emerald-700'
+                                  : stock > 0
+                                  ? 'text-amber-700'
+                                  : 'text-rose-700'
+                              }`}
+                            >
+                              {stock}
+                            </span>
+                            <button
+                              onClick={() => handleQuickStock(p, 1)}
+                              className="w-5 h-5 flex items-center justify-center rounded bg-white text-slate-600 hover:bg-slate-200 text-xs font-bold cursor-pointer"
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 text-center">
@@ -269,38 +291,50 @@ export function ProductManager({ products = [], categories = [], onProductsUpdat
                       </td>
 
                       <td className="px-4 py-3.5 text-center">
-                        <button
-                          onClick={() => handleToggleActive(p)}
-                          className="cursor-pointer"
-                          title={p.is_active ? 'Faol' : 'Nofaol'}
-                        >
-                          {p.is_active ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-slate-300" />
-                          )}
-                        </button>
+                        {readOnly ? (
+                          <span>
+                            {p.is_active ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" />
+                            ) : (
+                              <XCircle className="w-5 h-5 text-slate-300 mx-auto" />
+                            )}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleActive(p)}
+                            className="cursor-pointer"
+                            title={p.is_active ? 'Faol' : 'Nofaol'}
+                          >
+                            {p.is_active ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                            ) : (
+                              <XCircle className="w-5 h-5 text-slate-300" />
+                            )}
+                          </button>
+                        )}
                       </td>
 
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleEdit(p)}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                            title="Tahrirlash"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(p)}
-                            disabled={deletingId === p.id}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="O'chirish"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+                      {!readOnly && (
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleEdit(p)}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                              title="Tahrirlash"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(p)}
+                              disabled={deletingId === p.id}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="O'chirish"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })

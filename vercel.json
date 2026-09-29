@@ -1,11 +1,11 @@
 {
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://postore-phi.vercel.app/api/$1"
+      "source": "/api/:path*",
+      "destination": "https://postore-phi.vercel.app/api/:path*"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
