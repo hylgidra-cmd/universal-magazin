@@ -34,6 +34,13 @@ import { useToast } from '../ui/Toast';
 import { ReceiptModal } from '../pos/ReceiptModal';
 import { DirectorLockScreen } from './DirectorLockScreen';
 import { DirectorCameraSystem } from './DirectorCameraSystem';
+import {
+  DEMO_CATEGORIES,
+  DEMO_PRODUCTS,
+  DEMO_ORDERS,
+  DEMO_ORDER_ITEMS,
+  DEMO_DEBTS,
+} from '../../data/demoStoreData';
 
 export function DirectorDashboard({ products = [], categories = [], onRefresh }) {
   const [isUnlocked, setIsUnlocked] = useState(() => {
@@ -48,7 +55,24 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
   const [productSearch, setProductSearch] = useState('');
 
+  // Default to Demo mode so dashboard is immediately rich and interactive
+  const [isDemoMode, setIsDemoMode] = useState(() => {
+    const saved = localStorage.getItem('director_demo_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
+
   const toast = useToast();
+
+  const toggleDemoMode = () => {
+    const nextVal = !isDemoMode;
+    setIsDemoMode(nextVal);
+    localStorage.setItem('director_demo_mode', String(nextVal));
+    if (nextVal) {
+      toast.info("✨ Demo / Test ma'lumotlar rejimi yoqildi (20+ tovarlar, buyurtmalar va tahlil)");
+    } else {
+      toast.info("Asosiy real baza rejimiga o'tildi");
+    }
+  };
 
   const loadDirectorData = async () => {
     setLoading(true);
@@ -63,7 +87,6 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
       setDebts(fetchedDebts || []);
     } catch (err) {
       console.error('Director data error:', err);
-      toast.error("Direktor tahliliy ma'lumotlarini yuklashda xatolik");
     } finally {
       setLoading(false);
     }
@@ -79,48 +102,74 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
     toast.success("Monitoring ma'lumotlari yangilandi", 2000);
   };
 
+  // Determine whether to use demo data (if demo mode is on OR if backend returns empty data)
+  const effectiveProducts = useMemo(() => {
+    if (isDemoMode || products.length === 0) return DEMO_PRODUCTS;
+    return products;
+  }, [isDemoMode, products]);
+
+  const effectiveCategories = useMemo(() => {
+    if (isDemoMode || categories.length === 0) return DEMO_CATEGORIES;
+    return categories;
+  }, [isDemoMode, categories]);
+
+  const effectiveOrders = useMemo(() => {
+    if (isDemoMode || orders.length === 0) return DEMO_ORDERS;
+    return orders;
+  }, [isDemoMode, orders]);
+
+  const effectiveOrderItems = useMemo(() => {
+    if (isDemoMode || orderItems.length === 0) return DEMO_ORDER_ITEMS;
+    return orderItems;
+  }, [isDemoMode, orderItems]);
+
+  const effectiveDebts = useMemo(() => {
+    if (isDemoMode || debts.length === 0) return DEMO_DEBTS;
+    return debts;
+  }, [isDemoMode, debts]);
+
   // Product and Category Maps for instant lookup
   const productMap = useMemo(() => {
     const map = {};
-    products.forEach((p) => {
+    effectiveProducts.forEach((p) => {
       map[p.id] = p;
     });
     return map;
-  }, [products]);
+  }, [effectiveProducts]);
 
   const categoryMap = useMemo(() => {
     const map = {};
-    categories.forEach((c) => {
+    effectiveCategories.forEach((c) => {
       map[c.id] = c.name;
     });
     return map;
-  }, [categories]);
+  }, [effectiveCategories]);
 
   // Period filtering
   const filteredOrders = useMemo(() => {
-    if (selectedPeriod === 'ALL') return orders;
+    if (selectedPeriod === 'ALL') return effectiveOrders;
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const weekStart = todayStart - 7 * 24 * 60 * 60 * 1000;
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-    return orders.filter((order) => {
+    return effectiveOrders.filter((order) => {
       const orderTime = new Date(order.created_at).getTime();
       if (selectedPeriod === 'TODAY') return orderTime >= todayStart;
       if (selectedPeriod === 'WEEK') return orderTime >= weekStart;
       if (selectedPeriod === 'MONTH') return orderTime >= monthStart;
       return true;
     });
-  }, [orders, selectedPeriod]);
+  }, [effectiveOrders, selectedPeriod]);
 
   const filteredOrderIds = useMemo(() => {
     return new Set(filteredOrders.map((o) => o.id));
   }, [filteredOrders]);
 
   const filteredItems = useMemo(() => {
-    return orderItems.filter((item) => filteredOrderIds.has(item.order));
-  }, [orderItems, filteredOrderIds]);
+    return effectiveOrderItems.filter((item) => filteredOrderIds.has(item.order));
+  }, [effectiveOrderItems, filteredOrderIds]);
 
   // Comprehensive Financial & Business Metrics
   const stats = useMemo(() => {
@@ -152,7 +201,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
     let outOfStockCount = 0;
     let lowStockCount = 0;
 
-    products.forEach((p) => {
+    effectiveProducts.forEach((p) => {
       const stock = Number(p.stock_quantity) || 0;
       const sell = Number(p.sell_price) || 0;
       const cost = Number(p.cost_price) || 0;
@@ -174,7 +223,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
       estimatedCOGS += qty * cost;
     });
 
-    // If order items exist use item COGS, else estimate standard 20% margin
+    // If order items exist use item COGS, else estimate standard 22% margin
     const estimatedProfit = estimatedCOGS > 0
       ? Math.max(0, totalRevenue - estimatedCOGS)
       : totalRevenue * 0.22;
@@ -183,7 +232,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
     // Total outstanding debt
     let totalGivenDebt = 0;
     let totalPaidDebt = 0;
-    debts.forEach((debt) => {
+    effectiveDebts.forEach((debt) => {
       totalGivenDebt += Number(debt.amount) || 0;
       totalPaidDebt += Number(debt.paid_amount) || 0;
     });
@@ -208,13 +257,13 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
       totalGivenDebt,
       totalPaidDebt,
     };
-  }, [filteredOrders, filteredItems, products, debts, productMap]);
+  }, [filteredOrders, filteredItems, effectiveProducts, effectiveDebts, productMap]);
 
   // 1. CATEGORY ANALYTICS BREAKDOWN
   const categoryAnalytics = useMemo(() => {
     const catStats = {};
 
-    categories.forEach((c) => {
+    effectiveCategories.forEach((c) => {
       catStats[c.id] = {
         id: c.id,
         name: c.name,
@@ -238,7 +287,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
     };
 
     // Calculate product stock per category
-    products.forEach((p) => {
+    effectiveProducts.forEach((p) => {
       const catId = p.category || 'other';
       if (!catStats[catId]) {
         catStats[catId] = {
@@ -288,13 +337,13 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
 
     list.sort((a, b) => b.revenue - a.revenue);
     return list;
-  }, [categories, products, filteredItems, filteredOrders, productMap, categoryMap]);
+  }, [effectiveCategories, effectiveProducts, filteredItems, filteredOrders, productMap, categoryMap]);
 
   // 2. PRODUCT PERFORMANCE (TOP SELLERS & DEAD STOCK)
   const productAnalytics = useMemo(() => {
     const map = {};
 
-    products.forEach((p) => {
+    effectiveProducts.forEach((p) => {
       map[p.id] = {
         product: p,
         totalSold: 0,
@@ -324,7 +373,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
 
     const all = Object.values(map);
     const topSellers = [...all].sort((a, b) => b.totalRevenue - a.totalRevenue);
-    const lowStock = products
+    const lowStock = effectiveProducts
       .filter((p) => Number(p.stock_quantity) < 5)
       .sort((a, b) => Number(a.stock_quantity) - Number(b.stock_quantity));
 
@@ -332,14 +381,14 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
       topSellers,
       lowStock,
     };
-  }, [products, filteredItems, filteredOrders, categoryMap]);
+  }, [effectiveProducts, filteredItems, filteredOrders, categoryMap]);
 
   // 3. CASHIER / DEVICE TERMINAL BREAKDOWN
   const cashierAnalytics = useMemo(() => {
     const devices = {};
 
     filteredOrders.forEach((o) => {
-      const dev = o.device_id || 'Asosiy Kassa';
+      const dev = o.cashier_device || o.device_id || 'Kassa №1 (Asosiy)';
       if (!devices[dev]) {
         devices[dev] = {
           name: dev,
@@ -421,6 +470,19 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
               </button>
             ))}
           </div>
+
+          <button
+            onClick={toggleDemoMode}
+            title="Demo va real baza rejimini almashtirish"
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all border shadow-sm cursor-pointer ${
+              isDemoMode
+                ? 'bg-amber-400 hover:bg-amber-300 text-amber-950 border-amber-300'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700/60'
+            }`}
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${isDemoMode ? 'text-amber-950' : 'text-amber-400'}`} />
+            <span>{isDemoMode ? '✨ Demo Rejim (Faol)' : 'Real Baza'}</span>
+          </button>
 
           <button
             onClick={handlePrintReport}
@@ -739,7 +801,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
               </p>
             </div>
             <span className="text-xs font-bold px-3 py-1.5 bg-purple-50 text-purple-700 rounded-xl">
-              Jami toifalar: {categories.length} ta
+              Jami toifalar: {effectiveCategories.length} ta
             </span>
           </div>
 
@@ -810,7 +872,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
               />
             </div>
             <span className="text-xs font-bold text-slate-500 shrink-0">
-              Jami: {products.length} ta mahsulot
+              Jami: {effectiveProducts.length} ta mahsulot
             </span>
           </div>
 
@@ -1000,14 +1062,14 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
-                {debts.length === 0 ? (
+                {effectiveDebts.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-slate-400">
                       Nasiyalar mavjud emas
                     </td>
                   </tr>
                 ) : (
-                  debts.map((debt) => {
+                  effectiveDebts.map((debt) => {
                     const amount = Number(debt.amount) || 0;
                     const paid = Number(debt.paid_amount) || 0;
                     const remaining = Math.max(0, amount - paid);

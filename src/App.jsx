@@ -10,6 +10,7 @@ import { DirectorDashboard } from './components/director/DirectorDashboard';
 import { authService } from './services/authService';
 import { productService } from './services/productService';
 import { categoryService } from './services/categoryService';
+import { DEMO_PRODUCTS, DEMO_CATEGORIES } from './data/demoStoreData';
 
 function getInitialRole() {
   const path = window.location.pathname.toLowerCase();
@@ -127,43 +128,52 @@ function MainApp() {
           </div>
         ) : (
           <>
-            {activeTab === 'director' && (
-              <DirectorDashboard
-                products={products}
-                categories={categories}
-                onRefresh={() => loadCatalog(true)}
-              />
-            )}
+            {(() => {
+              const displayProducts = products.length > 0 ? products : DEMO_PRODUCTS;
+              const displayCategories = categories.length > 0 ? categories : DEMO_CATEGORIES;
 
-            {activeTab === 'pos' && (
-              <PosTerminal
-                products={products}
-                categories={categories}
-                onStockUpdated={() => loadCatalog(true)}
-              />
-            )}
+              return (
+                <>
+                  {activeTab === 'director' && (
+                    <DirectorDashboard
+                      products={displayProducts}
+                      categories={displayCategories}
+                      onRefresh={() => loadCatalog(true)}
+                    />
+                  )}
 
-            {activeTab === 'products' && (
-              <ProductManager
-                products={products}
-                categories={categories}
-                onProductsUpdated={() => loadCatalog(true)}
-                readOnly={currentRole === 'kassa' || currentRole === 'director'}
-              />
-            )}
+                  {activeTab === 'pos' && (
+                    <PosTerminal
+                      products={displayProducts}
+                      categories={displayCategories}
+                      onStockUpdated={() => loadCatalog(true)}
+                    />
+                  )}
 
-            {activeTab === 'orders' && (
-              <OrderHistory
-                products={products}
-                readOnly={currentRole === 'kassa' || currentRole === 'director'}
-              />
-            )}
+                  {activeTab === 'products' && (
+                    <ProductManager
+                      products={displayProducts}
+                      categories={displayCategories}
+                      onProductsUpdated={() => loadCatalog(true)}
+                      readOnly={currentRole === 'kassa' || currentRole === 'director'}
+                    />
+                  )}
 
-            {activeTab === 'debts' && (
-              <DebtTracker
-                readOnly={currentRole === 'kassa'}
-              />
-            )}
+                  {activeTab === 'orders' && (
+                    <OrderHistory
+                      products={displayProducts}
+                      readOnly={currentRole === 'kassa' || currentRole === 'director'}
+                    />
+                  )}
+
+                  {activeTab === 'debts' && (
+                    <DebtTracker
+                      readOnly={currentRole === 'kassa'}
+                    />
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
       </main>

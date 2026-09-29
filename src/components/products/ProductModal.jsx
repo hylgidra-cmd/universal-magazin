@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { productService } from '../../services/productService';
 import { useToast } from '../ui/Toast';
-import { Barcode, Sparkles, CheckCircle2, Zap } from 'lucide-react';
-import { playScannerBeep } from '../../utils/scannerAudio';
+import { Barcode } from 'lucide-react';
 
 export function ProductModal({ isOpen, onClose, product, categories = [], onProductSaved }) {
   const [formData, setFormData] = useState({
@@ -20,109 +19,8 @@ export function ProductModal({ isOpen, onClose, product, categories = [], onProd
   });
 
   const [loading, setLoading] = useState(false);
-  const [lastScanned, setLastScanned] = useState(null);
   const toast = useToast();
   const isEditing = Boolean(product);
-
-  const barcodeInputRef = useRef(null);
-  const nameInputRef = useRef(null);
-  const sellPriceInputRef = useRef(null);
-
-  // Auto-focus barcode input when modal opens for brand new product
-  useEffect(() => {
-    if (isOpen) {
-      setLastScanned(null);
-      const timer = setTimeout(() => {
-        if (!product) {
-          barcodeInputRef.current?.focus();
-        } else {
-          nameInputRef.current?.focus();
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, product]);
-
-  // Hardware USB Barcode scanner listener
-  useEffect(() => {
-    if (!isOpen) return;
-
-    let buffer = '';
-    let lastKeyTime = 0;
-
-    const handleKeyDown = (e) => {
-      // If user is inside a textarea, do not intercept
-      if (e.target.tagName === 'TEXTAREA') return;
-
-      const currentTime = Date.now();
-      const timeDiff = currentTime - lastKeyTime;
-
-      if (e.key === 'Enter') {
-        // Fast keyboard wedge signature from USB scanner or Barcode to PC app
-        if (buffer.length >= 3 && timeDiff < 100) {
-          e.preventDefault();
-          e.stopPropagation();
-          const cleanCode = buffer.trim();
-          setFormData((prev) => ({ ...prev, barcode: cleanCode }));
-          setLastScanned(cleanCode);
-          playScannerBeep('success');
-          toast.success(`⚡ Lazer skanerdan o'qildi: ${cleanCode}`);
-          buffer = '';
-
-          // Auto move focus to product name if empty, otherwise to sell price
-          setTimeout(() => {
-            if (!formData.name.trim()) {
-              nameInputRef.current?.focus();
-            } else {
-              sellPriceInputRef.current?.focus();
-            }
-          }, 50);
-          return;
-        }
-        buffer = '';
-        return;
-      }
-
-      if (e.key.length === 1) {
-        if (timeDiff > 80) {
-          buffer = e.key;
-        } else {
-          buffer += e.key;
-        }
-        lastKeyTime = currentTime;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, formData.name, toast]);
-
-  const generateRandomBarcode = () => {
-    const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
-    const code = `200${randomDigits}`.slice(0, 13);
-    setFormData((prev) => ({ ...prev, barcode: code }));
-    setLastScanned(code);
-    playScannerBeep('success');
-    toast.info(`Yangi ichki shtrix-kod yaratildi: ${code}`);
-  };
-
-  const handleBarcodeKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
-      const code = formData.barcode.trim();
-      if (code) {
-        playScannerBeep('success');
-        setLastScanned(code);
-        toast.success(`Shtrix-kod qabul qilindi: ${code}`);
-        if (!formData.name.trim()) {
-          nameInputRef.current?.focus();
-        } else {
-          sellPriceInputRef.current?.focus();
-        }
-      }
-    }
-  };
 
   useEffect(() => {
     const defaultCat = categories[0]?.id || '';
@@ -207,7 +105,6 @@ export function ProductModal({ isOpen, onClose, product, categories = [], onProd
               Mahsulot nomi <span className="text-rose-500">*</span>
             </label>
             <input
-              ref={nameInputRef}
               type="text"
               required
               value={formData.name}
@@ -255,59 +152,18 @@ export function ProductModal({ isOpen, onClose, product, categories = [], onProd
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <Barcode className="w-4 h-4 text-indigo-600" />
-                <span>Shtrix-kod (Barcode / QR)</span>
-              </label>
-              <button
-                type="button"
-                onClick={generateRandomBarcode}
-                title="Do'kon ichki shtrix-kodini avtomatik yaratish"
-                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <Sparkles className="w-3 h-3" />
-                <span>Yangi kod</span>
-              </button>
-            </div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Shtrix-kod (Barcode)
+            </label>
             <div className="relative">
               <input
-                ref={barcodeInputRef}
                 type="text"
                 value={formData.barcode}
-                onChange={(e) => {
-                  setFormData({ ...formData, barcode: e.target.value });
-                  setLastScanned(null);
-                }}
-                onKeyDown={handleBarcodeKeyDown}
-                placeholder="USB skaner bilan bosing yoki raqam yozing"
-                className="w-full pl-9 pr-20 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                placeholder="Bo'sh qolsa avtomatik yaratiladi"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
               />
               <Barcode className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-              {formData.barcode && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormData({ ...formData, barcode: '' });
-                    setLastScanned(null);
-                    barcodeInputRef.current?.focus();
-                  }}
-                  className="absolute right-2 top-2 px-2 py-0.5 text-xs text-slate-400 hover:text-rose-600 font-bold rounded cursor-pointer"
-                >
-                  Tozalash
-                </button>
-              )}
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px]">
-              <span className="text-emerald-600 font-medium flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                USB Lazer apparat ulangan: tovardagi kodni bosing, avtomatik tushadi
-              </span>
-              {lastScanned && (
-                <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Qabul qilindi
-                </span>
-              )}
             </div>
           </div>
 
@@ -343,7 +199,6 @@ export function ProductModal({ isOpen, onClose, product, categories = [], onProd
               Sotuv narxi <span className="text-rose-500">*</span>
             </label>
             <input
-              ref={sellPriceInputRef}
               type="number"
               step="any"
               min="0"
