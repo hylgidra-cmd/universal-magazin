@@ -8,12 +8,11 @@ import {
   RotateCcw,
   UserCircle2,
   Store,
-  LayoutDashboard,
   Shield,
   Monitor,
-  Briefcase,
   Copy,
   Check,
+  ExternalLink,
 } from 'lucide-react';
 import { authService } from '../../services/authService';
 import { useToast } from '../ui/Toast';
@@ -27,16 +26,16 @@ export function Navbar({
   onSync,
   syncing,
 }) {
-  const [copiedRole, setCopiedRole] = useState(null);
+  const [copied, setCopied] = useState(false);
   const toast = useToast();
 
-  const handleCopyLink = (role) => {
+  const handleCopyKassaLink = () => {
     const origin = window.location.origin;
-    const url = `${origin}/${role}`;
+    const url = `${origin}/kassa`;
     navigator.clipboard.writeText(url);
-    setCopiedRole(role);
-    toast.success(`Havola nusxalandi: ${url}`, 2500);
-    setTimeout(() => setCopiedRole(null), 2000);
+    setCopied(true);
+    toast.success(`Kassa havolasi nusxalandi: ${url}`, 2500);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -54,31 +53,25 @@ export function Navbar({
                   POStore
                 </span>
                 <span
-                  className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${
-                    currentRole === 'director'
-                      ? 'bg-purple-100 text-purple-700'
-                      : currentRole === 'kassa'
+                  className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
+                    currentRole === 'kassa'
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'bg-indigo-100 text-indigo-700'
                   }`}
                 >
-                  {currentRole === 'director'
-                    ? 'Direktor'
-                    : currentRole === 'kassa'
-                    ? 'Kassa'
-                    : 'Admin'}
+                  {currentRole === 'kassa' ? 'Kassa' : 'Admin'}
                 </span>
               </div>
               <span className="text-[11px] font-medium text-slate-400 leading-tight block">
-                Universal Savdo Tizimi
+                {currentRole === 'kassa' ? 'Sotuvchi Terminali' : 'Doʻkon Boshqaruv Tizimi'}
               </span>
             </div>
           </div>
 
-          {/* Navigation Tabs (Dynamic by Role) */}
+          {/* Navigation Tabs */}
           <nav className="hidden md:flex items-center gap-1.5 overflow-x-auto py-1">
             {/* KASSA MODE TABS */}
-            {currentRole === 'kassa' && (
+            {currentRole === 'kassa' ? (
               <>
                 <button
                   onClick={() => setActiveTab('pos')}
@@ -116,63 +109,8 @@ export function Navbar({
                   <span>Cheklarim</span>
                 </button>
               </>
-            )}
-
-            {/* DIRECTOR MODE TABS */}
-            {currentRole === 'director' && (
-              <>
-                <button
-                  onClick={() => setActiveTab('director')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-                    activeTab === 'director'
-                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>Direktor Monitoringi</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('orders')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-                    activeTab === 'orders'
-                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <ReceiptText className="w-4 h-4" />
-                  <span>Barcha Sotuvlar</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('debts')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-                    activeTab === 'debts'
-                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span>Nasiya Qarzdorlar</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('products')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-                    activeTab === 'products'
-                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <Package className="w-4 h-4" />
-                  <span>Sklad Nazorati</span>
-                </button>
-              </>
-            )}
-
-            {/* ADMIN MODE TABS (FULL PERMISSIONS) */}
-            {currentRole === 'admin' && (
+            ) : (
+              /* ADMIN MODE TABS (NO DIRECTOR TAB) */
               <>
                 <button
                   onClick={() => setActiveTab('pos')}
@@ -221,90 +159,61 @@ export function Navbar({
                   <BookOpen className="w-4 h-4" />
                   <span>Nasiya daftari</span>
                 </button>
-
-                <button
-                  onClick={() => setActiveTab('director')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-                    activeTab === 'director'
-                      ? 'bg-indigo-50 text-indigo-600 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>Direktor Tahlili</span>
-                </button>
               </>
             )}
           </nav>
 
-          {/* Right Section: Role Lock or Switcher */}
+          {/* Right Section */}
           <div className="flex items-center gap-2.5 shrink-0">
-            {/* If Admin: show full role switcher and copy tools */}
+            {/* Admin has Switch to Kassa and Copy Kassa link */}
             {currentRole === 'admin' ? (
-              <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 border border-slate-200">
-                <button
-                  onClick={() => onRoleChange('admin')}
-                  title="Admin boshqaruvi (/admin)"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-white text-indigo-700 shadow-xs"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span className="hidden lg:inline">Admin</span>
-                </button>
-
-                <button
-                  onClick={() => onRoleChange('director')}
-                  title="Direktor havolasi (/director)"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-slate-500 hover:text-slate-900"
-                >
-                  <Briefcase className="w-3.5 h-3.5" />
-                  <span className="hidden lg:inline">Direktor</span>
-                </button>
-
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => onRoleChange('kassa')}
-                  title="Kassa havolasi (/kassa)"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-slate-500 hover:text-slate-900"
+                  title="Kassir ekranini ochish (/kassa)"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
                 >
                   <Monitor className="w-3.5 h-3.5" />
-                  <span className="hidden lg:inline">Kassa</span>
+                  <span>Kassa Terminali</span>
+                </button>
+
+                <button
+                  onClick={handleCopyKassaLink}
+                  title="Kassa havolasini nusxalash (/kassa)"
+                  className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
+                >
+                  {copied ? (
+                    <Check className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
                 </button>
               </div>
-            ) : currentRole === 'kassa' ? (
-              /* If Kassa: locked cashier badge only */
-              <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-3 py-1.5 rounded-2xl text-xs font-bold shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <Monitor className="w-3.5 h-3.5" />
-                <span>Kassa Terminali</span>
-              </div>
             ) : (
-              /* If Director: locked director badge only */
-              <div className="flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200/80 px-3 py-1.5 rounded-2xl text-xs font-bold shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                <Briefcase className="w-3.5 h-3.5" />
-                <span>Direktor Portali</span>
-              </div>
-            )}
+              /* Kassa view: Locked indicator with button to return to Admin if authorized */
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span>Kassa</span>
+                </div>
 
-            {/* Copy Current Role URL Button (for Admin sharing) */}
-            {currentRole === 'admin' && (
-              <button
-                onClick={() => handleCopyLink(currentRole)}
-                title={`${currentRole.toUpperCase()} havolasini nusxalash`}
-                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer relative"
-              >
-                {copiedRole === currentRole ? (
-                  <Check className="w-4 h-4 text-emerald-600" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-              </button>
+                <button
+                  onClick={() => onRoleChange('admin')}
+                  title="Admin boshqaruviga qaytish"
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Admin</span>
+                </button>
+              </div>
             )}
 
             {/* Sync button */}
             <button
               onClick={onSync}
               disabled={syncing}
-              title="Ma'lumotlarni yangilash"
+              title="Yangilash"
               className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
             >
               <RotateCcw className={`w-4 h-4 ${syncing ? 'animate-spin text-indigo-600' : ''}`} />
@@ -341,7 +250,7 @@ export function Navbar({
 
         {/* Mobile secondary tab navigation */}
         <div className="md:hidden flex items-center gap-1 overflow-x-auto py-2 border-t border-slate-100">
-          {currentRole === 'kassa' && (
+          {currentRole === 'kassa' ? (
             <>
               <button
                 onClick={() => setActiveTab('pos')}
@@ -368,46 +277,7 @@ export function Navbar({
                 Cheklarim
               </button>
             </>
-          )}
-
-          {currentRole === 'director' && (
-            <>
-              <button
-                onClick={() => setActiveTab('director')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold shrink-0 ${
-                  activeTab === 'director' ? 'bg-purple-600 text-white' : 'text-slate-600'
-                }`}
-              >
-                Monitoring
-              </button>
-              <button
-                onClick={() => setActiveTab('orders')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold shrink-0 ${
-                  activeTab === 'orders' ? 'bg-purple-600 text-white' : 'text-slate-600'
-                }`}
-              >
-                Sotuvlar
-              </button>
-              <button
-                onClick={() => setActiveTab('debts')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold shrink-0 ${
-                  activeTab === 'debts' ? 'bg-purple-600 text-white' : 'text-slate-600'
-                }`}
-              >
-                Nasiyalar
-              </button>
-              <button
-                onClick={() => setActiveTab('products')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold shrink-0 ${
-                  activeTab === 'products' ? 'bg-purple-600 text-white' : 'text-slate-600'
-                }`}
-              >
-                Sklad
-              </button>
-            </>
-          )}
-
-          {currentRole === 'admin' && (
+          ) : (
             <>
               <button
                 onClick={() => setActiveTab('pos')}
@@ -440,14 +310,6 @@ export function Navbar({
                 }`}
               >
                 Nasiya
-              </button>
-              <button
-                onClick={() => setActiveTab('director')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold shrink-0 ${
-                  activeTab === 'director' ? 'bg-indigo-600 text-white' : 'text-slate-600'
-                }`}
-              >
-                Direktor
               </button>
             </>
           )}

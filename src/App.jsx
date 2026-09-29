@@ -6,7 +6,6 @@ import { PosTerminal } from './components/pos/PosTerminal';
 import { ProductManager } from './components/products/ProductManager';
 import { OrderHistory } from './components/orders/OrderHistory';
 import { DebtTracker } from './components/debts/DebtTracker';
-import { DirectorDashboard } from './components/director/DirectorDashboard';
 import { authService } from './services/authService';
 import { productService } from './services/productService';
 import { categoryService } from './services/categoryService';
@@ -16,17 +15,13 @@ function getInitialRole() {
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
   if (host.startsWith('kassa') || path.includes('kassa') || hash.includes('kassa')) return 'kassa';
-  if (host.startsWith('director') || path.includes('director') || hash.includes('director')) return 'director';
   return 'admin';
 }
 
 function MainApp() {
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
   const [currentRole, setCurrentRole] = useState(getInitialRole);
-  const [activeTab, setActiveTab] = useState(() => {
-    const role = getInitialRole();
-    return role === 'director' ? 'director' : 'pos';
-  });
+  const [activeTab, setActiveTab] = useState('pos');
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(false);
@@ -41,8 +36,7 @@ function MainApp() {
     const handleUrlChange = () => {
       const role = getInitialRole();
       setCurrentRole(role);
-      if (role === 'director') setActiveTab('director');
-      else if (role === 'kassa') setActiveTab('pos');
+      setActiveTab('pos');
     };
     window.addEventListener('popstate', handleUrlChange);
     window.addEventListener('hashchange', handleUrlChange);
@@ -56,13 +50,7 @@ function MainApp() {
   const handleRoleChange = (newRole) => {
     setCurrentRole(newRole);
     window.history.pushState(null, '', `/${newRole}`);
-    if (newRole === 'director') {
-      setActiveTab('director');
-    } else if (newRole === 'kassa') {
-      setActiveTab('pos');
-    } else {
-      setActiveTab('pos');
-    }
+    setActiveTab('pos');
   };
 
   useEffect(() => {
@@ -128,14 +116,6 @@ function MainApp() {
           </div>
         ) : (
           <>
-            {activeTab === 'director' && (
-              <DirectorDashboard
-                products={products}
-                categories={categories}
-                onRefresh={() => loadCatalog(true)}
-              />
-            )}
-
             {activeTab === 'pos' && (
               <PosTerminal
                 products={products}
@@ -149,14 +129,14 @@ function MainApp() {
                 products={products}
                 categories={categories}
                 onProductsUpdated={() => loadCatalog(true)}
-                readOnly={currentRole === 'kassa' || currentRole === 'director'}
+                readOnly={currentRole === 'kassa'}
               />
             )}
 
             {activeTab === 'orders' && (
               <OrderHistory
                 products={products}
-                readOnly={currentRole === 'kassa' || currentRole === 'director'}
+                readOnly={currentRole === 'kassa'}
               />
             )}
 
