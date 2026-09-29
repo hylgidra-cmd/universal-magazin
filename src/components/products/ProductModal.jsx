@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { productService } from '../../services/productService';
 import { useToast } from '../ui/Toast';
-import { Barcode, Camera } from 'lucide-react';
-import { CameraScannerModal } from '../common/CameraScannerModal';
+import { Barcode } from 'lucide-react';
 
 export function ProductModal({ isOpen, onClose, product, categories = [], onProductSaved }) {
   const [formData, setFormData] = useState({
@@ -20,7 +19,6 @@ export function ProductModal({ isOpen, onClose, product, categories = [], onProd
   });
 
   const [loading, setLoading] = useState(false);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const toast = useToast();
   const isEditing = Boolean(product);
 
@@ -94,8 +92,7 @@ export function ProductModal({ isOpen, onClose, product, categories = [], onProd
   };
 
   return (
-    <>
-      <Modal
+    <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={isEditing ? "Mahsulotni tahrirlash" : "Yangi mahsulot qo'shish"}
@@ -155,36 +152,18 @@ export function ProductModal({ isOpen, onClose, product, categories = [], onProd
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Shtrix-kod (Barcode / QR)
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsCameraOpen(true)}
-                className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                <span>Kameradan skanerlash</span>
-              </button>
-            </div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Shtrix-kod (Barcode)
+            </label>
             <div className="relative">
               <input
                 type="text"
                 value={formData.barcode}
                 onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                placeholder="Skanerlang yoki qo'lda raqam kiriting"
-                className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                placeholder="Bo'sh qolsa avtomatik yaratiladi"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
               />
               <Barcode className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-              <button
-                type="button"
-                onClick={() => setIsCameraOpen(true)}
-                title="Kamerani ochish"
-                className="absolute right-2 top-2 p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
-              >
-                <Camera className="w-4 h-4" />
-              </button>
             </div>
           </div>
 
@@ -290,16 +269,5 @@ export function ProductModal({ isOpen, onClose, product, categories = [], onProd
         </div>
       </form>
     </Modal>
-
-    <CameraScannerModal
-      isOpen={isCameraOpen}
-      onClose={() => setIsCameraOpen(false)}
-      onScanSuccess={(code) => {
-        setFormData((prev) => ({ ...prev, barcode: code }));
-        toast.success(`Skanerlandi: ${code}`);
-      }}
-      title="Mahsulot shtrix-kodini skanerlash"
-    />
-  </>
   );
 }
