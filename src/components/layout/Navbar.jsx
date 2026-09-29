@@ -237,62 +237,68 @@ export function Navbar({
             )}
           </nav>
 
-          {/* Right Section: Role Switcher & User Profile */}
+          {/* Right Section: Role Lock or Switcher */}
           <div className="flex items-center gap-2.5 shrink-0">
-            {/* Interactive Role Switcher Pills */}
-            <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 border border-slate-200">
-              <button
-                onClick={() => onRoleChange('admin')}
-                title="Admin boshqaruvi (/admin)"
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentRole === 'admin'
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">Admin</span>
-              </button>
+            {/* If Admin: show full role switcher and copy tools */}
+            {currentRole === 'admin' ? (
+              <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 border border-slate-200">
+                <button
+                  onClick={() => onRoleChange('admin')}
+                  title="Admin boshqaruvi (/admin)"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-white text-indigo-700 shadow-xs"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">Admin</span>
+                </button>
 
-              <button
-                onClick={() => onRoleChange('director')}
-                title="Direktor monitoringi (/director)"
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentRole === 'director'
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                <Briefcase className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">Direktor</span>
-              </button>
+                <button
+                  onClick={() => onRoleChange('director')}
+                  title="Direktor havolasi (/director)"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-slate-500 hover:text-slate-900"
+                >
+                  <Briefcase className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">Direktor</span>
+                </button>
 
-              <button
-                onClick={() => onRoleChange('kassa')}
-                title="Kassa terminali (/kassa)"
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentRole === 'kassa'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
+                <button
+                  onClick={() => onRoleChange('kassa')}
+                  title="Kassa havolasi (/kassa)"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-slate-500 hover:text-slate-900"
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">Kassa</span>
+                </button>
+              </div>
+            ) : currentRole === 'kassa' ? (
+              /* If Kassa: locked cashier badge only */
+              <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-3 py-1.5 rounded-2xl text-xs font-bold shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <Monitor className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">Kassa</span>
-              </button>
-            </div>
+                <span>Kassa Terminali</span>
+              </div>
+            ) : (
+              /* If Director: locked director badge only */
+              <div className="flex items-center gap-2 bg-purple-50 text-purple-700 border border-purple-200/80 px-3 py-1.5 rounded-2xl text-xs font-bold shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>Direktor Portali</span>
+              </div>
+            )}
 
-            {/* Copy Current Role URL Button */}
-            <button
-              onClick={() => handleCopyLink(currentRole)}
-              title={`${currentRole.toUpperCase()} havolasini nusxalash`}
-              className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer relative"
-            >
-              {copiedRole === currentRole ? (
-                <Check className="w-4 h-4 text-emerald-600" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </button>
+            {/* Copy Current Role URL Button (for Admin sharing) */}
+            {currentRole === 'admin' && (
+              <button
+                onClick={() => handleCopyLink(currentRole)}
+                title={`${currentRole.toUpperCase()} havolasini nusxalash`}
+                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer relative"
+              >
+                {copiedRole === currentRole ? (
+                  <Check className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </button>
+            )}
 
             {/* Sync button */}
             <button

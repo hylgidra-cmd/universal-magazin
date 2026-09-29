@@ -12,10 +12,11 @@ import { productService } from './services/productService';
 import { categoryService } from './services/categoryService';
 
 function getInitialRole() {
+  const host = window.location.hostname.toLowerCase();
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
-  if (path.includes('director') || hash.includes('director')) return 'director';
-  if (path.includes('kassa') || hash.includes('kassa')) return 'kassa';
+  if (host.startsWith('kassa') || path.includes('kassa') || hash.includes('kassa')) return 'kassa';
+  if (host.startsWith('director') || path.includes('director') || hash.includes('director')) return 'director';
   return 'admin';
 }
 
