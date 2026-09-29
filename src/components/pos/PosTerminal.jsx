@@ -3,7 +3,8 @@ import { FastButtons } from './FastButtons';
 import { Cart } from './Cart';
 import { CheckoutModal } from './CheckoutModal';
 import { ReceiptModal } from './ReceiptModal';
-import { Search, Barcode, Package } from 'lucide-react';
+import { Search, Barcode, Package, Camera } from 'lucide-react';
+import { CameraScannerModal } from '../common/CameraScannerModal';
 import { formatCurrency, getUnitLabel } from '../../utils/formatters';
 import { orderService } from '../../services/orderService';
 import { useToast } from '../ui/Toast';
@@ -17,6 +18,7 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [completedOrderData, setCompletedOrderData] = useState(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
 
   const barcodeInputRef = useRef(null);
   const toast = useToast();
@@ -105,6 +107,25 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
     }
   };
 
+  const handleCameraScan = (code) => {
+    const query = code.trim();
+    if (!query) return;
+
+    const matched = products.find(
+      (p) =>
+        p.barcode === query ||
+        p.id.toString() === query ||
+        p.name.toLowerCase() === query.toLowerCase()
+    );
+
+    if (matched) {
+      handleAddToCart(matched, 1);
+      toast.success(`Savatga qo'shildi: "${matched.name}"`);
+    } else {
+      toast.error(`Shtrix-kod bo'yicha mahsulot topilmadi: "${query}"`);
+    }
+  };
+
   const categoryMap = React.useMemo(() => {
     const map = {};
     categories.forEach((c) => {
@@ -172,7 +193,7 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-8 space-y-5">
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-3">
-            <form onSubmit={handleBarcodeSubmit} className="relative sm:w-64 shrink-0">
+            <form onSubmit={handleBarcodeSubmit} className="relative sm:w-72 shrink-0 flex items-center">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                 <Barcode className="w-5 h-5 text-indigo-500" />
               </div>
@@ -182,8 +203,16 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
                 value={barcodeQuery}
                 onChange={(e) => setBarcodeQuery(e.target.value)}
                 placeholder="Shtrix-kod (Enter)"
-                className="w-full pl-11 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                className="w-full pl-11 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
               />
+              <button
+                type="button"
+                onClick={() => setIsCameraOpen(true)}
+                title="Kamera bilan skanerlash"
+                className="absolute right-2 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
             </form>
 
             <div className="relative flex-1">
@@ -335,6 +364,13 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
           setCompletedOrderData(null);
           barcodeInputRef.current?.focus();
         }}
+      />
+
+      <CameraScannerModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onScanSuccess={handleCameraScan}
+        title="Kassada mahsulot skanerlash"
       />
     </div>
   );

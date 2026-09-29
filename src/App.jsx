@@ -12,16 +12,10 @@ import { productService } from './services/productService';
 import { categoryService } from './services/categoryService';
 
 function getInitialRole() {
-  const host = window.location.hostname.toLowerCase();
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
-
-  if (host.startsWith('director') || path.includes('/director') || hash.includes('director')) {
-    return 'director';
-  }
-  if (host.startsWith('kassa') || path.includes('/kassa') || hash.includes('kassa')) {
-    return 'kassa';
-  }
+  if (path.includes('director') || hash.includes('director')) return 'director';
+  if (path.includes('kassa') || hash.includes('kassa')) return 'kassa';
   return 'admin';
 }
 
@@ -41,7 +35,7 @@ function MainApp() {
   const toastRef = useRef(toast);
   toastRef.current = toast;
 
-  // URL o'zgarganda (brauzer orqaga/oldinga) rolni avtomatik aniqlash
+  // Listen for browser URL changes (back/forward navigation)
   useEffect(() => {
     const handleUrlChange = () => {
       const role = getInitialRole();
@@ -57,12 +51,17 @@ function MainApp() {
     };
   }, []);
 
+  // Sync role and update URL
   const handleRoleChange = (newRole) => {
     setCurrentRole(newRole);
     window.history.pushState(null, '', `/${newRole}`);
-    if (newRole === 'director') setActiveTab('director');
-    else if (newRole === 'kassa') setActiveTab('pos');
-    else setActiveTab('pos');
+    if (newRole === 'director') {
+      setActiveTab('director');
+    } else if (newRole === 'kassa') {
+      setActiveTab('pos');
+    } else {
+      setActiveTab('pos');
+    }
   };
 
   useEffect(() => {
@@ -128,8 +127,7 @@ function MainApp() {
           </div>
         ) : (
           <>
-            {/* DIREKTOR PORTALI (/director havolasida) */}
-            {currentRole === 'director' && (
+            {activeTab === 'director' && (
               <DirectorDashboard
                 products={products}
                 categories={categories}
@@ -137,39 +135,34 @@ function MainApp() {
               />
             )}
 
-            {/* KASSA VA ADMIN PANELLARI */}
-            {currentRole !== 'director' && (
-              <>
-                {activeTab === 'pos' && (
-                  <PosTerminal
-                    products={products}
-                    categories={categories}
-                    onStockUpdated={() => loadCatalog(true)}
-                  />
-                )}
+            {activeTab === 'pos' && (
+              <PosTerminal
+                products={products}
+                categories={categories}
+                onStockUpdated={() => loadCatalog(true)}
+              />
+            )}
 
-                {activeTab === 'products' && (
-                  <ProductManager
-                    products={products}
-                    categories={categories}
-                    onProductsUpdated={() => loadCatalog(true)}
-                    readOnly={currentRole === 'kassa'}
-                  />
-                )}
+            {activeTab === 'products' && (
+              <ProductManager
+                products={products}
+                categories={categories}
+                onProductsUpdated={() => loadCatalog(true)}
+                readOnly={currentRole === 'kassa' || currentRole === 'director'}
+              />
+            )}
 
-                {activeTab === 'orders' && (
-                  <OrderHistory
-                    products={products}
-                    readOnly={currentRole === 'kassa'}
-                  />
-                )}
+            {activeTab === 'orders' && (
+              <OrderHistory
+                products={products}
+                readOnly={currentRole === 'kassa' || currentRole === 'director'}
+              />
+            )}
 
-                {activeTab === 'debts' && (
-                  <DebtTracker
-                    readOnly={currentRole === 'kassa'}
-                  />
-                )}
-              </>
+            {activeTab === 'debts' && (
+              <DebtTracker
+                readOnly={currentRole === 'kassa'}
+              />
             )}
           </>
         )}
