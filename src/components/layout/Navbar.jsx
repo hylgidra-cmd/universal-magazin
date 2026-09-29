@@ -10,6 +10,7 @@ import {
   Store,
   Shield,
   Monitor,
+  Briefcase,
   Copy,
   Check,
   ExternalLink,
@@ -26,16 +27,16 @@ export function Navbar({
   onSync,
   syncing,
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(null);
   const toast = useToast();
 
-  const handleCopyKassaLink = () => {
+  const handleCopyLink = (rolePath) => {
     const origin = window.location.origin;
-    const url = `${origin}/kassa`;
+    const url = `${origin}/${rolePath}`;
     navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast.success(`Kassa havolasi nusxalandi: ${url}`, 2500);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedLink(rolePath);
+    toast.success(`Havola nusxalandi: ${url}`, 2500);
+    setTimeout(() => setCopiedLink(null), 2000);
   };
 
   return (
@@ -54,24 +55,34 @@ export function Navbar({
                 </span>
                 <span
                   className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
-                    currentRole === 'kassa'
+                    currentRole === 'director'
+                      ? 'bg-purple-100 text-purple-700'
+                      : currentRole === 'kassa'
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'bg-indigo-100 text-indigo-700'
                   }`}
                 >
-                  {currentRole === 'kassa' ? 'Kassa' : 'Admin'}
+                  {currentRole === 'director'
+                    ? 'Direktor'
+                    : currentRole === 'kassa'
+                    ? 'Kassa'
+                    : 'Admin'}
                 </span>
               </div>
               <span className="text-[11px] font-medium text-slate-400 leading-tight block">
-                {currentRole === 'kassa' ? 'Sotuvchi Terminali' : 'Doʻkon Boshqaruv Tizimi'}
+                {currentRole === 'director'
+                  ? 'Direktor Nazorat va Tahlil Portali'
+                  : currentRole === 'kassa'
+                  ? 'Kassa Savdo Terminali'
+                  : 'Universal Doʻkon Boshqaruvi'}
               </span>
             </div>
           </div>
 
           {/* Navigation Tabs */}
           <nav className="hidden md:flex items-center gap-1.5 overflow-x-auto py-1">
-            {/* KASSA MODE TABS */}
-            {currentRole === 'kassa' ? (
+            {/* 1. KASSA MODE TABS */}
+            {currentRole === 'kassa' && (
               <>
                 <button
                   onClick={() => setActiveTab('pos')}
@@ -109,8 +120,18 @@ export function Navbar({
                   <span>Cheklarim</span>
                 </button>
               </>
-            ) : (
-              /* ADMIN MODE TABS (NO DIRECTOR TAB) */
+            )}
+
+            {/* 2. DIRECTOR MODE (Title badge is self-contained) */}
+            {currentRole === 'director' && (
+              <div className="flex items-center gap-2 text-xs font-bold text-purple-700 bg-purple-50 px-4 py-2 rounded-xl border border-purple-200">
+                <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse" />
+                <span>Jonli Tahliliy Monitoring</span>
+              </div>
+            )}
+
+            {/* 3. ADMIN MODE TABS (Clean: POS, Products, Orders, Debts) */}
+            {currentRole === 'admin' && (
               <>
                 <button
                   onClick={() => setActiveTab('pos')}
@@ -165,47 +186,76 @@ export function Navbar({
 
           {/* Right Section */}
           <div className="flex items-center gap-2.5 shrink-0">
-            {/* Admin has Switch to Kassa and Copy Kassa link */}
+            {/* If Admin: Quick Link Buttons to Kassa and Director */}
             {currentRole === 'admin' ? (
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => onRoleChange('kassa')}
-                  title="Kassir ekranini ochish (/kassa)"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                >
-                  <Monitor className="w-3.5 h-3.5" />
-                  <span>Kassa Terminali</span>
-                </button>
-
-                <button
-                  onClick={handleCopyKassaLink}
-                  title="Kassa havolasini nusxalash (/kassa)"
-                  className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
-                >
-                  {copied ? (
-                    <Check className="w-4 h-4 text-emerald-600" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            ) : (
-              /* Kassa view: Locked indicator with button to return to Admin if authorized */
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <Monitor className="w-3.5 h-3.5" />
-                  <span>Kassa</span>
+              <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-2xl border border-slate-200">
+                {/* Director Link Button */}
+                <div className="flex items-center">
+                  <a
+                    href="/director"
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Direktor oynasini ochish (/director)"
+                    className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-white text-purple-700 rounded-xl text-xs font-bold transition-all"
+                  >
+                    <Briefcase className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline">Direktor</span>
+                    <ExternalLink className="w-3 h-3 text-purple-400" />
+                  </a>
+                  <button
+                    onClick={() => handleCopyLink('director')}
+                    title="Direktor havolasini nusxalash"
+                    className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    {copiedLink === 'director' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
                 </div>
 
-                <button
-                  onClick={() => onRoleChange('admin')}
-                  title="Admin boshqaruviga qaytish"
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Admin</span>
-                </button>
+                <div className="w-[1px] h-4 bg-slate-200" />
+
+                {/* Kassa Link Button */}
+                <div className="flex items-center">
+                  <a
+                    href="/kassa"
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Kassa terminalini ochish (/kassa)"
+                    className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-white text-emerald-700 rounded-xl text-xs font-bold transition-all"
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline">Kassa</span>
+                    <ExternalLink className="w-3 h-3 text-emerald-400" />
+                  </a>
+                  <button
+                    onClick={() => handleCopyLink('kassa')}
+                    title="Kassa havolasini nusxalash"
+                    className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    {copiedLink === 'kassa' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : currentRole === 'kassa' ? (
+              /* Kassa: Isolated Cashier Badge */
+              <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <Monitor className="w-3.5 h-3.5" />
+                <span>Kassa Terminali</span>
+              </div>
+            ) : (
+              /* Director: Isolated Director Badge */
+              <div className="flex items-center gap-1.5 bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-xl text-xs font-bold">
+                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>Direktor Kabineti</span>
               </div>
             )}
 
@@ -277,6 +327,10 @@ export function Navbar({
                 Cheklarim
               </button>
             </>
+          ) : currentRole === 'director' ? (
+            <div className="text-xs font-bold text-purple-700 py-1 px-2">
+              Direktor Tahliliy Monitoring Portali
+            </div>
           ) : (
             <>
               <button

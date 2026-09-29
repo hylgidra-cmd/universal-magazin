@@ -6,6 +6,7 @@ import { PosTerminal } from './components/pos/PosTerminal';
 import { ProductManager } from './components/products/ProductManager';
 import { OrderHistory } from './components/orders/OrderHistory';
 import { DebtTracker } from './components/debts/DebtTracker';
+import { DirectorDashboard } from './components/director/DirectorDashboard';
 import { authService } from './services/authService';
 import { productService } from './services/productService';
 import { categoryService } from './services/categoryService';
@@ -14,14 +15,23 @@ function getInitialRole() {
   const host = window.location.hostname.toLowerCase();
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
-  if (host.startsWith('kassa') || path.includes('kassa') || hash.includes('kassa')) return 'kassa';
+
+  if (host.startsWith('director') || path.includes('/director') || hash.includes('director')) {
+    return 'director';
+  }
+  if (host.startsWith('kassa') || path.includes('/kassa') || hash.includes('kassa')) {
+    return 'kassa';
+  }
   return 'admin';
 }
 
 function MainApp() {
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
   const [currentRole, setCurrentRole] = useState(getInitialRole);
-  const [activeTab, setActiveTab] = useState('pos');
+  const [activeTab, setActiveTab] = useState(() => {
+    const role = getInitialRole();
+    return role === 'director' ? 'director' : 'pos';
+  });
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(false);
@@ -31,12 +41,13 @@ function MainApp() {
   const toastRef = useRef(toast);
   toastRef.current = toast;
 
-  // Listen for browser URL changes (back/forward navigation)
+  // URL o'zgarganda (brauzer orqaga/oldinga) rolni avtomatik aniqlash
   useEffect(() => {
     const handleUrlChange = () => {
       const role = getInitialRole();
       setCurrentRole(role);
-      setActiveTab('pos');
+      if (role === 'director') setActiveTab('director');
+      else if (role === 'kassa') setActiveTab('pos');
     };
     window.addEventListener('popstate', handleUrlChange);
     window.addEventListener('hashchange', handleUrlChange);
@@ -46,11 +57,12 @@ function MainApp() {
     };
   }, []);
 
-  // Sync role and update URL
   const handleRoleChange = (newRole) => {
     setCurrentRole(newRole);
     window.history.pushState(null, '', `/${newRole}`);
-    setActiveTab('pos');
+    if (newRole === 'director') setActiveTab('director');
+    else if (newRole === 'kassa') setActiveTab('pos');
+    else setActiveTab('pos');
   };
 
   useEffect(() => {
@@ -116,34 +128,48 @@ function MainApp() {
           </div>
         ) : (
           <>
-            {activeTab === 'pos' && (
-              <PosTerminal
+            {/* DIREKTOR PORTALI (/director havolasida) */}
+            {currentRole === 'director' && (
+              <DirectorDashboard
                 products={products}
                 categories={categories}
-                onStockUpdated={() => loadCatalog(true)}
+                onRefresh={() => loadCatalog(true)}
               />
             )}
 
-            {activeTab === 'products' && (
-              <ProductManager
-                products={products}
-                categories={categories}
-                onProductsUpdated={() => loadCatalog(true)}
-                readOnly={currentRole === 'kassa'}
-              />
-            )}
+            {/* KASSA VA ADMIN PANELLARI */}
+            {currentRole !== 'director' && (
+              <>
+                {activeTab === 'pos' && (
+                  <PosTerminal
+                    products={products}
+                    categories={categories}
+                    onStockUpdated={() => loadCatalog(true)}
+                  />
+                )}
 
-            {activeTab === 'orders' && (
-              <OrderHistory
-                products={products}
-                readOnly={currentRole === 'kassa'}
-              />
-            )}
+                {activeTab === 'products' && (
+                  <ProductManager
+                    products={products}
+                    categories={categories}
+                    onProductsUpdated={() => loadCatalog(true)}
+                    readOnly={currentRole === 'kassa'}
+                  />
+                )}
 
-            {activeTab === 'debts' && (
-              <DebtTracker
-                readOnly={currentRole === 'kassa'}
-              />
+                {activeTab === 'orders' && (
+                  <OrderHistory
+                    products={products}
+                    readOnly={currentRole === 'kassa'}
+                  />
+                )}
+
+                {activeTab === 'debts' && (
+                  <DebtTracker
+                    readOnly={currentRole === 'kassa'}
+                  />
+                )}
+              </>
             )}
           </>
         )}
