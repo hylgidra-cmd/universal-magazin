@@ -3,10 +3,11 @@ import { FastButtons } from './FastButtons';
 import { Cart } from './Cart';
 import { CheckoutModal } from './CheckoutModal';
 import { ReceiptModal } from './ReceiptModal';
-import { Search, Barcode, Package } from 'lucide-react';
+import { Search, Barcode, Package, Zap } from 'lucide-react';
 import { formatCurrency, getUnitLabel } from '../../utils/formatters';
 import { orderService } from '../../services/orderService';
 import { useToast } from '../ui/Toast';
+import { playScannerBeep } from '../../utils/scannerAudio';
 
 export function PosTerminal({ products = [], categories = [], onStockUpdated }) {
   const [cartItems, setCartItems] = useState([]);
@@ -25,22 +26,78 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
     barcodeInputRef.current?.focus();
   }, []);
 
+  // Global hardware barcode scanner listener
   useEffect(() => {
+    let buffer = '';
+    let lastKeyTime = 0;
+
     const handleKeyDown = (e) => {
       if (e.key === 'F2') {
         e.preventDefault();
         barcodeInputRef.current?.focus();
         barcodeInputRef.current?.select();
+        return;
       } else if (e.key === 'F4') {
         e.preventDefault();
         if (cartItems.length > 0 && !isCheckoutOpen) {
           setIsCheckoutOpen(true);
         }
+        return;
+      }
+
+      // If a modal is open, don't intercept scanner
+      if (isCheckoutOpen || isReceiptOpen) return;
+
+      // If user is actively typing in the manual text search input
+      if (document.activeElement?.getAttribute('data-search-box') === 'true') {
+        return;
+      }
+
+      const currentTime = Date.now();
+      const timeDiff = currentTime - lastKeyTime;
+
+      if (e.key === 'Enter') {
+        // Fast keyboard wedge from USB scanner or Barcode to PC app
+        if (buffer.length >= 2 && timeDiff < 100) {
+          e.preventDefault();
+          e.stopPropagation();
+          const cleanCode = buffer.trim();
+          buffer = '';
+
+          const matched = products.find(
+            (p) =>
+              p.barcode === cleanCode ||
+              p.id.toString() === cleanCode ||
+              p.name.toLowerCase() === cleanCode.toLowerCase()
+          );
+
+          if (matched) {
+            handleAddToCart(matched, 1);
+            playScannerBeep('success');
+            toast.success(`⚡ "${matched.name}" savatga qo'shildi`);
+          } else {
+            playScannerBeep('error');
+            toast.error(`Shtrix-kod bazadan topilmadi: "${cleanCode}"`);
+          }
+          return;
+        }
+        buffer = '';
+        return;
+      }
+
+      if (e.key.length === 1) {
+        if (timeDiff > 80) {
+          buffer = e.key;
+        } else {
+          buffer += e.key;
+        }
+        lastKeyTime = currentTime;
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cartItems, isCheckoutOpen]);
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [products, cartItems.length, isCheckoutOpen, isReceiptOpen, toast]);
 
   const handleAddToCart = (product, quantityToAdd = 1) => {
     if (!product.is_active) {
@@ -99,8 +156,11 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
 
     if (matched) {
       handleAddToCart(matched, 1);
+      playScannerBeep('success');
       setBarcodeQuery('');
+      barcodeInputRef.current?.focus();
     } else {
+      playScannerBeep('error');
       toast.error(`Shtrix-kod bo'yicha mahsulot topilmadi: "${query}"`);
     }
   };
@@ -172,7 +232,7 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-8 space-y-5">
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-3">
-            <form onSubmit={handleBarcodeSubmit} className="relative sm:w-64 shrink-0">
+            <form onSubmit={handleBarcodeSubmit} className="relative sm:w-80 shrink-0">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                 <Barcode className="w-5 h-5 text-indigo-500" />
               </div>
@@ -181,9 +241,15 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
                 type="text"
                 value={barcodeQuery}
                 onChange={(e) => setBarcodeQuery(e.target.value)}
-                placeholder="Shtrix-kod (Enter)"
-                className="w-full pl-11 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                placeholder="Lazer skaner yoki kod (Enter)..."
+                className="w-full pl-11 pr-24 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
               />
+              <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1 border border-emerald-200/60 shadow-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  USB Skaner
+                </span>
+              </div>
             </form>
 
             <div className="relative flex-1">
@@ -192,6 +258,7 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
               </div>
               <input
                 type="text"
+                data-search-box="true"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Mahsulot nomi yoki tavsifi bo'yicha qidirish..."
