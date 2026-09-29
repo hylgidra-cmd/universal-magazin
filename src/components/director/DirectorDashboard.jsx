@@ -24,14 +24,21 @@ import {
   Sparkles,
   ChevronRight,
   ShieldAlert,
+  Video,
+  Lock,
 } from 'lucide-react';
 import { formatCurrency, formatDate, getUnitLabel } from '../../utils/formatters';
 import { orderService } from '../../services/orderService';
 import { debtService } from '../../services/debtService';
 import { useToast } from '../ui/Toast';
 import { ReceiptModal } from '../pos/ReceiptModal';
+import { DirectorLockScreen } from './DirectorLockScreen';
+import { DirectorCameraSystem } from './DirectorCameraSystem';
 
 export function DirectorDashboard({ products = [], categories = [], onRefresh }) {
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return sessionStorage.getItem('director_authorized') === 'true';
+  });
   const [orders, setOrders] = useState([]);
   const [orderItems, setOrderItems] = useState([]);
   const [debts, setDebts] = useState([]);
@@ -358,6 +365,16 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
     window.print();
   };
 
+  const handleLock = () => {
+    sessionStorage.removeItem('director_authorized');
+    setIsUnlocked(false);
+    toast.info("Direktor kabineti qulflandi");
+  };
+
+  if (!isUnlocked) {
+    return <DirectorLockScreen onUnlock={() => setIsUnlocked(true)} />;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* Top Executive Header */}
@@ -421,6 +438,15 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
           >
             <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Yangilash</span>
+          </button>
+
+          <button
+            onClick={handleLock}
+            title="Direktor kabinetini qulflash va chiqish"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-bold border border-rose-500/60 transition-all shadow-md active:scale-95 cursor-pointer"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Qulflash</span>
           </button>
         </div>
       </div>
@@ -528,6 +554,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
       <div className="bg-white rounded-2xl p-1.5 border border-slate-200 shadow-xs flex items-center gap-1 overflow-x-auto">
         {[
           { id: 'overview', label: 'Umumiy Tahlil', icon: BarChart3 },
+          { id: 'cameras', label: 'Kameralar Tizimi (CCTV)', icon: Video },
           { id: 'categories', label: 'Kategoriyalar Tahlili', icon: Layers },
           { id: 'products', label: 'Mahsulotlar Reytingi', icon: Package },
           { id: 'cashiers', label: 'Kassirlar Faoliyati', icon: Users },
@@ -551,6 +578,9 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
           );
         })}
       </div>
+
+      {/* SUB-TAB: CAMERAS CCTV */}
+      {activeSubTab === 'cameras' && <DirectorCameraSystem />}
 
       {/* SUB-TAB 1: OVERVIEW */}
       {activeSubTab === 'overview' && (
