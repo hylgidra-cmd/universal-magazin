@@ -46,6 +46,8 @@ export function Cart({ cartItems, onUpdateQuantity, onRemoveItem, onClearCart, o
             const itemPrice = Number(item.price || item.product.sell_price);
             const itemTotal = itemPrice * item.quantity;
             const unitLabel = getUnitLabel(item.product.unit);
+            const isWeighed = item.product.unit === 'KG' || item.product.unit === 'LITER';
+            const step = isWeighed ? 0.25 : 1;
 
             return (
               <div key={item.product.id} className="py-3 flex items-center justify-between gap-3 group">
@@ -58,19 +60,21 @@ export function Cart({ cartItems, onUpdateQuantity, onRemoveItem, onClearCart, o
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0 bg-slate-100 p-1 rounded-xl">
+                <div className="flex items-center gap-1 shrink-0 bg-slate-100 p-1 rounded-xl">
                   <button
-                    onClick={() => onUpdateQuantity(item.product.id, item.quantity - 1)}
+                    onClick={() => onUpdateQuantity(item.product.id, Math.max(0, Number((item.quantity - step).toFixed(3))))}
                     className="w-7 h-7 flex items-center justify-center rounded-lg bg-white shadow-xs text-slate-600 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                    title={`-${step} ${unitLabel}`}
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
-                  <span className="w-8 text-center text-xs font-bold text-slate-800 select-none">
-                    {item.quantity}
+                  <span className="px-1.5 min-w-[42px] text-center text-xs font-bold text-slate-800 select-none">
+                    {item.quantity} {isWeighed ? unitLabel.toLowerCase() : ''}
                   </span>
                   <button
-                    onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)}
+                    onClick={() => onUpdateQuantity(item.product.id, Number((item.quantity + step).toFixed(3)))}
                     className="w-7 h-7 flex items-center justify-center rounded-lg bg-white shadow-xs text-slate-600 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                    title={`+${step} ${unitLabel}`}
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -95,8 +99,8 @@ export function Cart({ cartItems, onUpdateQuantity, onRemoveItem, onClearCart, o
       {cartItems.length > 0 && (
         <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-3">
           <div className="flex items-center justify-between text-sm text-slate-500">
-            <span>Tovarlar soni:</span>
-            <span className="font-semibold text-slate-700">{totalItemCount} ta</span>
+            <span>Tovarlar:</span>
+            <span className="font-semibold text-slate-700">{cartItems.length} xil pozitsiya</span>
           </div>
           <div className="flex items-baseline justify-between pt-1 border-t border-slate-200">
             <span className="text-base font-bold text-slate-800">Jami to'lov:</span>

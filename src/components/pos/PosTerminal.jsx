@@ -3,8 +3,10 @@ import { FastButtons } from './FastButtons';
 import { Cart } from './Cart';
 import { CheckoutModal } from './CheckoutModal';
 import { ReceiptModal } from './ReceiptModal';
-import { Search, Barcode, Package } from 'lucide-react';
+import { ScaleLabelModal } from '../scale/ScaleLabelModal';
+import { Search, Barcode, Package, Scale } from 'lucide-react';
 import { formatCurrency, getUnitLabel } from '../../utils/formatters';
+import { parseWeightBarcode } from '../../utils/weightBarcode';
 import { orderService } from '../../services/orderService';
 import { useToast } from '../ui/Toast';
 
@@ -17,6 +19,7 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [completedOrderData, setCompletedOrderData] = useState(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [isScaleModalOpen, setIsScaleModalOpen] = useState(false);
 
   const barcodeInputRef = useRef(null);
   const toast = useToast();
@@ -48,19 +51,22 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
       return;
     }
 
+    const qty = Number(Number(quantityToAdd).toFixed(3));
+
     setCartItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
         return prev.map((item) =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantityToAdd }
+            ? { ...item, quantity: Number((item.quantity + qty).toFixed(3)) }
             : item
         );
       }
-      return [...prev, { product, quantity: quantityToAdd, price: product.sell_price }];
+      return [...prev, { product, quantity: qty, price: product.sell_price }];
     });
 
-    toast.info(`"${product.name}" savatga qo'shildi`, 1500);
+    const unitStr = product.unit === 'KG' ? `${qty} kg` : `${qty} ta`;
+    toast.info(`"${product.name}" (${unitStr}) savatga qo'shildi`, 1500);
   };
 
   const handleUpdateQuantity = (productId, newQuantity) => {
@@ -68,9 +74,10 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
       handleRemoveItem(productId);
       return;
     }
+    const qty = Number(Number(newQuantity).toFixed(3));
     setCartItems((prev) =>
       prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity: newQuantity } : item
+        item.product.id === productId ? { ...item, quantity: qty } : item
       )
     );
   };
@@ -90,6 +97,19 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
     const query = barcodeQuery.trim();
     if (!query) return;
 
+    // 1. Check if scanned barcode is a weight-embedded barcode (EAN-13 starting with 22 or 2D QR)
+    const weightParsed = parseWeightBarcode(query, products);
+    if (weightParsed) {
+      handleAddToCart(weightParsed.product, weightParsed.weightInKg);
+      toast.success(
+        `⚖️ Tarozi stikeri o'qildi: "${weightParsed.product.name}" (${weightParsed.weightInKg} kg — ${formatCurrency(weightParsed.totalPrice)})`,
+        3000
+      );
+      setBarcodeQuery('');
+      return;
+    }
+
+    // 2. Standard product barcode lookup
     const matched = products.find(
       (p) =>
         p.barcode === query ||
@@ -206,6 +226,16 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
                 </button>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsScaleModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+              title="Tarozi orqali o'lchangan tovarlar uchun stiker etiketka chiqarish va shtrix-kod yaratish"
+            >
+              <Scale className="w-4 h-4 text-amber-300" />
+              <span>Tarozi & Etiketka</span>
+            </button>
           </div>
 
           <FastButtons products={products} onAddToCart={handleAddToCart} />
@@ -335,6 +365,13 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
           setCompletedOrderData(null);
           barcodeInputRef.current?.focus();
         }}
+      />
+
+      <ScaleLabelModal
+        isOpen={isScaleModalOpen}
+        onClose={() => setIsScaleModalOpen(false)}
+        products={products}
+        onAddToCart={handleAddToCart}
       />
     </div>
   );
