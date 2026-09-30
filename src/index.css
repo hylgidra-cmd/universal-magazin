@@ -16,10 +16,12 @@ body {
 @media print {
   body * { visibility: hidden; }
   #receipt-print-area, #receipt-print-area *,
-  #printable-thermal-label, #printable-thermal-label * {
+  #printable-thermal-label, #printable-thermal-label *,
+  #shift-z-report-area, #shift-z-report-area * {
     visibility: visible;
   }
-  #receipt-print-area {
+  #receipt-print-area,
+  #shift-z-report-area {
     position: absolute;
     left: 0;
     top: 0;

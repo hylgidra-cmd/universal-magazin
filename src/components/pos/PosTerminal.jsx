@@ -4,10 +4,12 @@ import { Cart } from './Cart';
 import { CheckoutModal } from './CheckoutModal';
 import { ReceiptModal } from './ReceiptModal';
 import { ScaleLabelModal } from '../scale/ScaleLabelModal';
-import { Search, Barcode, Package, Scale } from 'lucide-react';
+import { ShiftModal } from './ShiftModal';
+import { Search, Barcode, Package, Scale, Clock } from 'lucide-react';
 import { formatCurrency, getUnitLabel } from '../../utils/formatters';
 import { parseWeightBarcode } from '../../utils/weightBarcode';
 import { orderService } from '../../services/orderService';
+import { shiftService } from '../../services/shiftService';
 import { useToast } from '../ui/Toast';
 
 export function PosTerminal({ products = [], categories = [], onStockUpdated }) {
@@ -20,9 +22,20 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
   const [completedOrderData, setCompletedOrderData] = useState(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isScaleModalOpen, setIsScaleModalOpen] = useState(false);
+  const [currentShift, setCurrentShift] = useState(() => shiftService.getCurrentShift());
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
 
   const barcodeInputRef = useRef(null);
   const toast = useToast();
+
+  const handleOpenCheckout = () => {
+    if (!currentShift || currentShift.status !== 'OPEN') {
+      toast.warning("Savdo qilish uchun avval kassa smenasini oching!");
+      setIsShiftModalOpen(true);
+      return;
+    }
+    setIsCheckoutOpen(true);
+  };
 
   useEffect(() => {
     barcodeInputRef.current?.focus();
@@ -37,13 +50,13 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
       } else if (e.key === 'F4') {
         e.preventDefault();
         if (cartItems.length > 0 && !isCheckoutOpen) {
-          setIsCheckoutOpen(true);
+          handleOpenCheckout();
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cartItems, isCheckoutOpen]);
+  }, [cartItems, isCheckoutOpen, currentShift]);
 
   const handleAddToCart = (product, quantityToAdd = 1) => {
     if (!product.is_active) {
@@ -179,6 +192,19 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
       setIsReceiptOpen(true);
       setCartItems([]);
 
+      // Record sale in active shift
+      const cash = Number(paymentDetails.paidCash) || 0;
+      const card = Number(paymentDetails.paidCard) || 0;
+      const debt = Number(paymentDetails.paidDebt) || 0;
+      shiftService.recordOrderSale({
+        orderId: res.order?.id || `ORD-${Date.now()}`,
+        paidCash: cash,
+        paidCard: card,
+        paidDebt: debt,
+        totalAmount: cash + card + debt,
+      });
+      setCurrentShift(shiftService.getCurrentShift());
+
       if (onStockUpdated) onStockUpdated();
     } catch (err) {
       toast.error(err.message || "Xatolik yuz berdi");
@@ -189,6 +215,75 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* KASSA SMENASI (SHIFT) STATUS BAR */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs mb-5">
+        <div className="flex items-center gap-3">
+          {currentShift && currentShift.status === 'OPEN' ? (
+            <div className="flex items-center gap-3">
+              <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-black text-slate-900">
+                    Smena #{currentShift.shiftNumber} Ochiq
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                    Faol
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-500 block">
+                  Kassir: <strong className="text-slate-700">{currentShift.cashierName}</strong>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="w-3 h-3 rounded-full bg-rose-500 shrink-0" />
+              <div>
+                <span className="text-xs sm:text-sm font-black text-rose-700 block">
+                  Kassa Smenasi Yopiq
+                </span>
+                <span className="text-[11px] text-slate-500 block">
+                  Savdo qilish uchun avval yangi smenani oching
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {currentShift && currentShift.status === 'OPEN' ? (
+            <>
+              <div className="hidden sm:block text-right pr-3 border-r border-slate-200">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                  Smena Tushumi
+                </span>
+                <span className="text-sm font-black text-emerald-700">
+                  {formatCurrency(currentShift.totalSales)}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsShiftModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              >
+                <Clock className="w-4 h-4 text-indigo-600" />
+                <span>Smena & Z-Hisobot</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsShiftModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer active:scale-95 animate-pulse"
+            >
+              <Clock className="w-4 h-4" />
+              <span>Yangi Smenani Ochish</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-8 space-y-5">
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-3">
@@ -343,7 +438,7 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={handleRemoveItem}
             onClearCart={handleClearCart}
-            onCheckout={() => setIsCheckoutOpen(true)}
+            onCheckout={handleOpenCheckout}
           />
         </div>
       </div>
@@ -372,6 +467,13 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
         onClose={() => setIsScaleModalOpen(false)}
         products={products}
         onAddToCart={handleAddToCart}
+      />
+
+      <ShiftModal
+        isOpen={isShiftModalOpen}
+        onClose={() => setIsShiftModalOpen(false)}
+        currentShift={currentShift}
+        onShiftUpdated={(updated) => setCurrentShift(updated)}
       />
     </div>
   );

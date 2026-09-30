@@ -36,6 +36,7 @@ import { ReceiptModal } from '../pos/ReceiptModal';
 import { DirectorLockScreen } from './DirectorLockScreen';
 import { DirectorCameraSystem } from './DirectorCameraSystem';
 import { DirectorProcurementAnalytics } from './DirectorProcurementAnalytics';
+import { DirectorShiftHistory } from './DirectorShiftHistory';
 import {
   DEMO_CATEGORIES,
   DEMO_PRODUCTS,
@@ -618,6 +619,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
       <div className="bg-white rounded-2xl p-1.5 border border-slate-200 shadow-xs flex items-center gap-1 overflow-x-auto">
         {[
           { id: 'overview', label: 'Umumiy Tahlil', icon: BarChart3 },
+          { id: 'shifts', label: 'Smenalar & Z-Hisobot', icon: Clock },
           { id: 'procurement', label: '🧠 AI Analiz (07:00)', icon: Sparkles },
           { id: 'cameras', label: 'Kameralar Tizimi (CCTV)', icon: Video },
           { id: 'categories', label: 'Kategoriyalar Tahlili', icon: Layers },
@@ -643,6 +645,9 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
           );
         })}
       </div>
+
+      {/* SUB-TAB: SHIFTS & Z-REPORTS */}
+      {activeSubTab === 'shifts' && <DirectorShiftHistory />}
 
       {/* SUB-TAB: CAMERAS CCTV */}
       {activeSubTab === 'cameras' && <DirectorCameraSystem />}
