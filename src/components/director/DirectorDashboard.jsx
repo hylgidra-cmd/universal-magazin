@@ -618,7 +618,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
       <div className="bg-white rounded-2xl p-1.5 border border-slate-200 shadow-xs flex items-center gap-1 overflow-x-auto">
         {[
           { id: 'overview', label: 'Umumiy Tahlil', icon: BarChart3 },
-          { id: 'procurement', label: 'Tongi Zakup & Tovar Tahlili (07:00)', icon: ShoppingCart },
+          { id: 'procurement', label: '🧠 AI Analiz (07:00)', icon: Sparkles },
           { id: 'cameras', label: 'Kameralar Tizimi (CCTV)', icon: Video },
           { id: 'categories', label: 'Kategoriyalar Tahlili', icon: Layers },
           { id: 'products', label: 'Mahsulotlar Reytingi', icon: Package },
@@ -664,20 +664,20 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
           <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-950 rounded-3xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-5 border border-purple-800/60">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-2xl bg-amber-400 text-amber-950 flex items-center justify-center font-bold shrink-0 shadow-lg shadow-amber-400/20">
-                <Clock className="w-6 h-6" />
+                <Sparkles className="w-6 h-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                    Tongi 07:00 Zakup Tavsiyanomasi
+                    AI Analiz • Har Kuni Soat 07:00 da
                   </span>
-                  <span className="text-xs text-emerald-400 font-semibold">Har kunlik avtomatik xulosa</span>
+                  <span className="text-xs text-emerald-400 font-semibold">Tongi Avtomatik Xulosa</span>
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-white mt-1">
                   Coca-Cola juda tez sotilmoqda (xarid qilish kerak), Pepsi esa omborda yetarli!
                 </h3>
                 <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                  Kunlik tovarlar aylanmasiga qarab, qaysi mahsulotdan koʻproq olish kerakligi va qaysi biri omborda yetarli ekanligi tahlili tayyor.
+                  Sunʼiy intellekt savdo tezligi boʻyicha qaysi tovardan zudlik bilan zakaz qilish kerakligi va qaysi biri omborda yetarli ekanligi tahlilini chiqardi.
                 </p>
               </div>
             </div>
@@ -685,7 +685,7 @@ export function DirectorDashboard({ products = [], categories = [], onRefresh })
               onClick={() => setActiveSubTab('procurement')}
               className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs font-black rounded-2xl transition-all shadow-md active:scale-95 shrink-0 cursor-pointer flex items-center gap-1.5"
             >
-              <span>07:00 Tahlilni Koʻrish</span>
+              <span>07:00 AI Tahlilini Koʻrish</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

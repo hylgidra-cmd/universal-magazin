@@ -15,6 +15,8 @@ import {
   PackageCheck,
   PackageX,
   HelpCircle,
+  Bot,
+  Zap,
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../ui/Toast';
@@ -192,10 +194,10 @@ export function DirectorProcurementAnalytics({
       year: 'numeric',
     });
 
-    let msg = `🌅 MAGlogin ZAKUP VA TOVAR HARAKATI HISOBOTI (Soat 07:00)\n`;
-    msg += `📅 Sana: ${todayStr}\n`;
+    let msg = `🤖 MAGLOGIN AI ZAKUP TAHLILI (07:00 TONGGI HISOBOT)\n`;
+    msg += `📅 Sana: ${todayStr} | ⏰ Vaqt: 07:00 da hisoblangan\n`;
     msg += `------------------------------------\n\n`;
-    msg += `🔴 ZUDLIK BILAN XARID QILISH KERAK (Tez sotilayotganlar):\n`;
+    msg += `🔴 AI TAVSIYASI: ZUDLIK BILAN OLISH KERAK (Tez sotilmoqda):\n`;
 
     if (urgentBuyItems.length === 0) {
       msg += `Hozircha barcha tovarlar yetarli miqdorda.\n`;
@@ -207,7 +209,7 @@ export function DirectorProcurementAnalytics({
       });
     }
 
-    msg += `\n🟢 OMBORDA ZAXIRA YETARLI (Hozircha olinmasin):\n`;
+    msg += `\n🟢 AI TAVSIYASI: OMBORDA YETARLI (Hozircha olinmasin):\n`;
     procurementData
       .filter((i) => i.status === 'IN_STOCK' || i.status === 'SLOW_MOVING')
       .slice(0, 5)
@@ -215,10 +217,10 @@ export function DirectorProcurementAnalytics({
         msg += `   • ${item.name} — ${item.stock_quantity} dona bor (${item.daysOfStockLeft} kunga yetadi)\n`;
       });
 
-    msg += `\n✅ Maslahat: Ko'p ketayotgan tovardan ko'proq, omborda boridan esa olmay turish tavsiya etiladi.`;
+    msg += `\n💡 AI XULOSASI: Xaridorlar ko'p olayotgan tovardan (masalan Coca-Coladek) ko'proq xarid qiling, omborda yetarli bo'lganidan esa olmang!`;
 
     navigator.clipboard.writeText(msg);
-    toast.success("07:00 Zakup hisoboti nusxalandi! Telegramga tashlashingiz mumkin.");
+    toast.success("🤖 07:00 AI Zakup hisoboti nusxalandi! Telegramga tashlashingiz mumkin.");
   };
 
   return (
@@ -231,20 +233,20 @@ export function DirectorProcurementAnalytics({
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-400 text-amber-950 shadow-sm">
-                <Clock className="w-3.5 h-3.5" />
-                Har Kuni Soat 07:00 Tongi Tahlil
+                <Bot className="w-4 h-4 text-amber-950" />
+                AI Analiz • Har Kuni Soat 07:00 da
               </span>
               <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Avtomatik Aqlli Algoritm
+                Sunʼiy Intellekt Savdo Algoritmi
               </span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Qaysi Tovardan Olish Kerak, Qaysi Biri Omborda Bor?
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-2.5">
+              <span>🧠 AI Analiz: Qaysi Tovardan Olish Kerak, Qaysi Biri Omborda Bor?</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Odamlar har kuni qaysi mahsulotni koʻproq sotib olayotganini (sotuv tezligi) tahlil qilib, 
-              tugayotgan tovarlarni oʻz vaqtida xarid qilish va omborda yetarli tovarlarga behuda pul muzlatmaslik tavsiyalari.
+              Har kuni ertalab soat 07:00 da AI tovarlarning kunlik sotilish tezligini (Coca-Cola vs Pepsi kabi) tahlil qilib, 
+              qaysi mahsulotdan koʻproq sotib olish va qaysi birini olmay turish kerakligini avtomatik aniqlab beradi.
             </p>
           </div>
 
@@ -345,6 +347,28 @@ export function DirectorProcurementAnalytics({
             </div>
             <p className="text-xs text-amber-700 mt-2 font-semibold">
               Xarid qilish rejalashtirilgan tovarlar
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Morning Briefing Callout */}
+      <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 border border-purple-800/80 rounded-3xl p-5 sm:p-6 text-white shadow-md relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-purple-500/30">
+            <Bot className="w-6 h-6 animate-pulse text-amber-300" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                07:00 AI Tongi Xulosasi & Maslahati
+              </span>
+              <span className="text-[10px] bg-purple-500/30 text-purple-300 px-2 py-0.5 rounded-full border border-purple-400/30 font-bold">
+                Avtomatik Tahlil
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              «Hurmatli direktor! Bugungi soat 07:00 AI hisob-kitobiga koʻra, <strong>Coca-Cola 1.5L</strong> va yana {urgentBuyItems.length} ta xaridorgir tovar juda tez sotilmoqda — zaxirasi 1-2 kunda tugaydi, shuning uchun <strong>shulardan koʻproq zakaz qiling</strong>. <strong>Pepsi Cola</strong> va baqqollik tovarlari esa omborda yetarli darajada mavjud (kamida 7-15 kunga yetadi) — <strong>hozircha xarid qilish shart emas</strong>, mablagʻni muzlatib qoʻymang.»
             </p>
           </div>
         </div>
