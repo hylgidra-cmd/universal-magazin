@@ -149,3 +149,4 @@ Javobni chiroyli, o'qilishi oson, punktlar bilan va professional supermarket dar
     return result;
   },
 };
+

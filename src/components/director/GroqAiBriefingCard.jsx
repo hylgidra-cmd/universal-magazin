@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { aiAnalyticsService } from '../../services/aiAnalyticsService';
 import { useToast } from '../ui/Toast';
+import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
 export function GroqAiBriefingCard({ products = [], orders = [] }) {
   const toast = useToast();
@@ -165,9 +166,9 @@ export function GroqAiBriefingCard({ products = [], orders = [] }) {
       ) : analysis?.content ? (
         isExpanded && (
           <div className="space-y-4">
-            {/* Formatted AI Output Container */}
-            <div className="bg-slate-950/60 border border-white/10 rounded-2xl p-5 sm:p-6 text-slate-200 font-sans text-xs sm:text-sm leading-relaxed space-y-3 whitespace-pre-wrap selection:bg-purple-500 selection:text-white">
-              {analysis.content}
+            {/* Formatted Markdown AI Output Container */}
+            <div className="bg-slate-950/70 border border-white/10 rounded-2xl p-5 sm:p-6 shadow-inner text-xs sm:text-sm">
+              <MarkdownRenderer content={analysis.content} />
             </div>
 
             {/* Footer metadata */}
@@ -259,3 +260,4 @@ export function GroqAiBriefingCard({ products = [], orders = [] }) {
     </div>
   );
 }
+
