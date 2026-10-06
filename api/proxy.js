@@ -12,12 +12,38 @@ export default async function handler(req, res) {
   }
 
   try {
-    let requestPath = req.url || '';
-    if (!requestPath.startsWith('/api')) {
-      requestPath = `/api${requestPath.startsWith('/') ? requestPath : '/' + requestPath}`;
+    let subPath = '';
+    if (req.query && req.query.path) {
+      subPath = Array.isArray(req.query.path) ? req.query.path.join('/') : req.query.path;
+    } else if (req.url) {
+      subPath = req.url.replace(/^\/api\/proxy\??/, '').replace(/^\/api\/?/, '');
     }
 
-    const targetUrl = `https://postore-phi.vercel.app${requestPath}`;
+    // Strip leading /
+    subPath = subPath.replace(/^\/+/, '');
+
+    // Reconstruct other query parameters (excluding 'path')
+    const queryParams = new URLSearchParams();
+    if (req.query) {
+      for (const [key, val] of Object.entries(req.query)) {
+        if (key !== 'path') {
+          if (Array.isArray(val)) {
+            val.forEach((v) => queryParams.append(key, v));
+          } else {
+            queryParams.append(key, val);
+          }
+        }
+      }
+    }
+
+    // Build final path with trailing slash for Django
+    let finalPath = `/api/${subPath}`;
+    if (!finalPath.endsWith('/')) {
+      finalPath += '/';
+    }
+
+    const queryString = queryParams.toString();
+    const targetUrl = `https://postore-phi.vercel.app${finalPath}${queryString ? '?' + queryString : ''}`;
 
     const forwardHeaders = {
       'Content-Type': req.headers['content-type'] || 'application/json',
