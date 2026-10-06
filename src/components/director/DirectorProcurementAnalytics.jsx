@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../ui/Toast';
+import { GroqAiBriefingCard } from './GroqAiBriefingCard';
 
 export function DirectorProcurementAnalytics({
   products = [],
@@ -352,27 +353,8 @@ export function DirectorProcurementAnalytics({
         </div>
       </div>
 
-      {/* AI Morning Briefing Callout */}
-      <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 border border-purple-800/80 rounded-3xl p-5 sm:p-6 text-white shadow-md relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-purple-500/30">
-            <Bot className="w-6 h-6 animate-pulse text-amber-300" />
-          </div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
-                07:00 AI Tongi Xulosasi & Maslahati
-              </span>
-              <span className="text-[10px] bg-purple-500/30 text-purple-300 px-2 py-0.5 rounded-full border border-purple-400/30 font-bold">
-                Avtomatik Tahlil
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-              «Hurmatli direktor! Bugungi soat 07:00 AI hisob-kitobiga koʻra, <strong>Coca-Cola 1.5L</strong> va yana {urgentBuyItems.length} ta xaridorgir tovar juda tez sotilmoqda — zaxirasi 1-2 kunda tugaydi, shuning uchun <strong>shulardan koʻproq zakaz qiling</strong>. <strong>Pepsi Cola</strong> va baqqollik tovarlari esa omborda yetarli darajada mavjud (kamida 7-15 kunga yetadi) — <strong>hozircha xarid qilish shart emas</strong>, mablagʻni muzlatib qoʻymang.»
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* Groq Live AI Daily Briefing & Shortage Analysis */}
+      <GroqAiBriefingCard products={products} orders={orders} />
 
       {/* SPECIAL FEATURE: PRODUCT COMPARISON (User's Exact Example: Coca-Cola vs Pepsi) */}
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
