@@ -12,6 +12,7 @@ import { authService } from './services/authService';
 import { productService } from './services/productService';
 import { categoryService } from './services/categoryService';
 import { orderService } from './services/orderService';
+import { offlineSyncService } from './services/offlineSyncService';
 import { DEMO_PRODUCTS, DEMO_CATEGORIES, DEMO_ORDERS } from './data/demoStoreData';
 
 function getInitialRole(user) {
@@ -115,13 +116,37 @@ function MainApp() {
         categoryService.getAllCategories().catch(() => []),
         orderService.getAllOrders().catch(() => []),
       ]);
-      setProducts(fetchedProducts || []);
-      setCategories(fetchedCategories || []);
+
+      const prods =
+        fetchedProducts && fetchedProducts.length > 0
+          ? fetchedProducts
+          : offlineSyncService.getCachedProducts();
+      const cats =
+        fetchedCategories && fetchedCategories.length > 0
+          ? fetchedCategories
+          : offlineSyncService.getCachedCategories();
+
+      setProducts(prods || []);
+      setCategories(cats || []);
       setOrders(fetchedOrders || []);
+
+      // Cache fresh catalog for offline access
+      if (prods && prods.length > 0) {
+        offlineSyncService.cacheCatalog(prods, cats);
+      }
+
       if (isSilent) toastRef.current.success("Ma'lumotlar yangilandi", 2000);
     } catch (err) {
-      console.error('Failed to load catalog:', err);
-      toastRef.current.error(err.message || "Katalog ma'lumotlarini yuklashda xatolik");
+      console.warn('Network catalog load failed, using local offline cache:', err);
+      const cachedProds = offlineSyncService.getCachedProducts();
+      const cachedCats = offlineSyncService.getCachedCategories();
+      if (cachedProds.length > 0) {
+        setProducts(cachedProds);
+        setCategories(cachedCats);
+        toastRef.current.info("📴 Offline kesh: Mahsulotlar lokal xotiradan yuklandi", 3000);
+      } else {
+        toastRef.current.error(err.message || "Katalog ma'lumotlarini yuklashda xatolik");
+      }
     } finally {
       setLoadingInitial(false);
       setSyncing(false);

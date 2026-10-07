@@ -171,3 +171,4 @@ export function AdminAiAnalytics({ products = [], orders = [], onNavigateToProdu
     </div>
   );
 }
+

@@ -3,6 +3,7 @@ import { toDecimalString } from '../utils/formatters';
 import { authService } from './authService';
 import { debtService } from './debtService';
 import { productService } from './productService';
+import { offlineSyncService } from './offlineSyncService';
 
 export const orderService = {
   async checkout({
@@ -50,56 +51,111 @@ export const orderService = {
       device_id: deviceId,
     };
 
-    const order = await apiRequest('/api/order/', {
-      method: 'POST',
-      body: JSON.stringify(orderPayload),
-    });
-
-    const orderId = order.id;
-    const createdItems = [];
-
-    for (const item of cartItems) {
-      try {
-        const itemRes = await apiRequest('/api/order_item/', {
-          method: 'POST',
-          body: JSON.stringify({
-            order: orderId,
-            product: item.product.id,
-            quantity: item.quantity,
-            price: toDecimalString(item.price || item.product.sell_price),
-          }),
-        });
-        createdItems.push(itemRes);
-
-        if (autoDeductStock && item.product.stock_quantity !== undefined) {
-          const newQty = Math.max(0, item.product.stock_quantity - item.quantity);
-          productService.updateStock(item.product.id, newQty).catch((err) => {
-            console.warn(`Could not update stock for product #${item.product.id}:`, err);
-          });
-        }
-      } catch (itemErr) {
-        console.error('Error creating order item:', itemErr);
-      }
-    }
-
-    if (debtNum > 0 && debtorUserId) {
-      const currentUser = authService.getCurrentUser();
-      const cashierId = currentUser?.id || currentUser?.user_id;
-
-      if (!cashierId) {
-        throw new Error("Kassir ID aniqlanmadi (Debt yaratib bo'lmadi).");
-      }
-
-      await debtService.createDebt({
+    // Helper: Build offline order result
+    const buildOfflineOrderResult = () => {
+      const debtData = debtNum > 0 && debtorUserId ? {
         userId: debtorUserId,
-        cashierId: cashierId,
-        orderId: orderId,
+        cashierId: authService.getCurrentUser()?.id || 1,
         amount: debtNum,
         paidAmount: 0,
+      } : null;
+
+      const offlineOrder = offlineSyncService.saveOfflineOrder({
+        orderPayload,
+        cartItems,
+        debtData,
+        totalAmount,
+        paidCash: cashNum,
+        paidCard: cardNum,
+        paidDebt: debtNum,
       });
+
+      offlineSyncService.deductLocalStock(cartItems);
+
+      const items = cartItems.map((item, idx) => ({
+        id: `offline_item_${Date.now()}_${idx}`,
+        order: offlineOrder.id,
+        product: item.product.id,
+        product_detail: item.product,
+        quantity: item.quantity,
+        price: toDecimalString(item.price || item.product.sell_price),
+      }));
+
+      return {
+        order: {
+          ...offlineOrder,
+          total_amount: toDecimalString(totalAmount),
+          paid_cash: toDecimalString(cashNum),
+          paid_card: toDecimalString(cardNum),
+          paid_debt: toDecimalString(debtNum),
+          is_offline: true,
+        },
+        items,
+        isOffline: true,
+      };
+    };
+
+    // If browser is explicitly offline, save locally without waiting
+    if (!offlineSyncService.isOnline()) {
+      return buildOfflineOrderResult();
     }
 
-    return { order, items: createdItems };
+    try {
+      const order = await apiRequest('/api/order/', {
+        method: 'POST',
+        body: JSON.stringify(orderPayload),
+      });
+
+      const orderId = order.id;
+      const createdItems = [];
+
+      for (const item of cartItems) {
+        try {
+          const itemRes = await apiRequest('/api/order_item/', {
+            method: 'POST',
+            body: JSON.stringify({
+              order: orderId,
+              product: item.product.id,
+              quantity: item.quantity,
+              price: toDecimalString(item.price || item.product.sell_price),
+            }),
+          });
+          createdItems.push(itemRes);
+
+          if (autoDeductStock && item.product.stock_quantity !== undefined) {
+            const newQty = Math.max(0, item.product.stock_quantity - item.quantity);
+            productService.updateStock(item.product.id, newQty).catch((err) => {
+              console.warn(`Could not update stock for product #${item.product.id}:`, err);
+            });
+          }
+        } catch (itemErr) {
+          console.error('Error creating order item:', itemErr);
+        }
+      }
+
+      if (debtNum > 0 && debtorUserId) {
+        const currentUser = authService.getCurrentUser();
+        const cashierId = currentUser?.id || currentUser?.user_id;
+
+        if (!cashierId) {
+          throw new Error("Kassir ID aniqlanmadi (Debt yaratib bo'lmadi).");
+        }
+
+        await debtService.createDebt({
+          userId: debtorUserId,
+          cashierId: cashierId,
+          orderId: orderId,
+          amount: debtNum,
+          paidAmount: 0,
+        });
+      }
+
+      return { order, items: createdItems, isOffline: false };
+    } catch (serverErr) {
+      console.warn("Server unavailable, saving order in offline queue:", serverErr);
+      // Fallback to offline order on network/server error
+      return buildOfflineOrderResult();
+    }
   },
 
   async getAllOrders() {

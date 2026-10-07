@@ -15,8 +15,11 @@ import {
   Copy,
   Check,
   Sparkles,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { authService } from '../../services/authService';
+import { offlineSyncService } from '../../services/offlineSyncService';
 import { useToast } from '../ui/Toast';
 
 export function Navbar({
@@ -29,7 +32,25 @@ export function Navbar({
   syncing,
 }) {
   const [copiedRole, setCopiedRole] = useState(null);
+  const [isOnline, setIsOnline] = useState(() => offlineSyncService.isOnline());
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(() => offlineSyncService.getPendingOrders().length);
   const toast = useToast();
+
+  React.useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    const onQueueUpdate = (e) => setPendingOrdersCount(e.detail?.count || 0);
+
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('offline-orders-updated', onQueueUpdate);
+
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('offline-orders-updated', onQueueUpdate);
+    };
+  }, []);
 
   const handleRoleChangeClick = (targetRole) => {
     if (currentUser?.role === 'CASHIER' || currentUser?.username === 'kassa') {
@@ -317,6 +338,31 @@ export function Navbar({
                 <Copy className="w-4 h-4" />
               )}
             </button>
+
+            {/* Online / Offline Network Badge */}
+            <div
+              className={`p-1.5 px-2 rounded-xl flex items-center gap-1.5 text-[11px] font-bold border transition-colors ${
+                isOnline
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
+              }`}
+              title={
+                isOnline
+                  ? `Server bilan aloqa bor (Online)${pendingOrdersCount > 0 ? ` - ${pendingOrdersCount} ta chek kutilmoqda` : ''}`
+                  : `Internet uzilgan (Offline rejim)${pendingOrdersCount > 0 ? ` - ${pendingOrdersCount} ta chek lokal saqlangan` : ''}`
+              }
+            >
+              {isOnline ? (
+                <Wifi className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              ) : (
+                <WifiOff className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+              )}
+              {pendingOrdersCount > 0 && (
+                <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-black">
+                  {pendingOrdersCount}
+                </span>
+              )}
+            </div>
 
             {/* Sync button */}
             <button

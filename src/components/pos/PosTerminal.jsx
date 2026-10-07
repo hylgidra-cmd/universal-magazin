@@ -10,7 +10,9 @@ import { formatCurrency, getUnitLabel } from '../../utils/formatters';
 import { parseWeightBarcode } from '../../utils/weightBarcode';
 import { orderService } from '../../services/orderService';
 import { shiftService } from '../../services/shiftService';
+import { offlineSyncService } from '../../services/offlineSyncService';
 import { useToast } from '../ui/Toast';
+import { Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
 export function PosTerminal({ products = [], categories = [], onStockUpdated }) {
   const [cartItems, setCartItems] = useState([]);
@@ -24,6 +26,9 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
   const [isScaleModalOpen, setIsScaleModalOpen] = useState(false);
   const [currentShift, setCurrentShift] = useState(() => shiftService.getCurrentShift());
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => offlineSyncService.isOnline());
+  const [pendingOfflineOrders, setPendingOfflineOrders] = useState(() => offlineSyncService.getPendingOrders().length);
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false);
 
   const barcodeInputRef = useRef(null);
   const toast = useToast();
@@ -57,6 +62,62 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cartItems, isCheckoutOpen, currentShift]);
+
+  // Online / offline listeners & automatic sync
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      toast.success("🌐 Internet aloqasi tiklandi! Kutilayotgan cheklar serverga yuklanmoqda...", 3500);
+      try {
+        const res = await offlineSyncService.syncPendingOrders();
+        if (res.syncedCount > 0) {
+          toast.success(`✅ ${res.syncedCount} ta offline chek serverga muvaffaqiyatli yuklandi!`, 4000);
+          if (onStockUpdated) onStockUpdated();
+        }
+        setPendingOfflineOrders(res.failedCount || 0);
+      } catch (e) {
+        console.warn('Auto sync error:', e);
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.warning("📴 Internet aloqasi uzildi. Kassa avtonom (offline) rejimda to'xtovsiz ishlamoqda.", 5000);
+    };
+
+    const handleQueueUpdated = (e) => {
+      setPendingOfflineOrders(e.detail?.count || 0);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('offline-orders-updated', handleQueueUpdated);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('offline-orders-updated', handleQueueUpdated);
+    };
+  }, [onStockUpdated]);
+
+  const handleManualSync = async () => {
+    if (isSyncingOffline) return;
+    setIsSyncingOffline(true);
+    try {
+      const res = await offlineSyncService.syncPendingOrders();
+      if (res.syncedCount > 0) {
+        toast.success(`✅ ${res.syncedCount} ta offline chek serverga muvaffaqiyatli yuklandi!`);
+        if (onStockUpdated) onStockUpdated();
+      } else {
+        toast.info("Kutilayotgan offline cheklar yo'q.");
+      }
+      setPendingOfflineOrders(res.failedCount || 0);
+    } catch (err) {
+      toast.error(err.message || "Sinxronlashda xatolik yuz berdi");
+    } finally {
+      setIsSyncingOffline(false);
+    }
+  };
 
   const handleAddToCart = (product, quantityToAdd = 1) => {
     if (!product.is_active) {
@@ -173,7 +234,15 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
         autoDeductStock: true,
       });
 
-      toast.success("Savdo muvaffaqiyatli yakunlandi!");
+      if (res.isOffline) {
+        toast.warning(
+          "📴 Internet yo'q: Chek kassa xotirasiga saqlandi va chop etildi! Internet qaytganda serverga avtomatik yuklanadi.",
+          5000
+        );
+        setPendingOfflineOrders(offlineSyncService.getPendingOrders().length);
+      } else {
+        toast.success("Savdo muvaffaqiyatli yakunlandi!");
+      }
 
       const orderReceiptData = {
         order: res.order,
@@ -251,6 +320,33 @@ export function PosTerminal({ products = [], categories = [], onStockUpdated }) 
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Online / Offline Network Badge */}
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${
+              isOnline
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+            }`}
+            title={isOnline ? 'Server bilan aloqa faol' : 'Internet uzilgan (Offline avtonom kassa faol)'}
+          >
+            {isOnline ? <Wifi className="w-3.5 h-3.5 text-emerald-600" /> : <WifiOff className="w-3.5 h-3.5 text-rose-600" />}
+            <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline Rejim'}</span>
+          </div>
+
+          {/* Pending Offline Orders Sync Button */}
+          {pendingOfflineOrders > 0 && (
+            <button
+              type="button"
+              onClick={handleManualSync}
+              disabled={isSyncingOffline || !isOnline}
+              title="Kutilayotgan cheklarni serverga yuklash"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingOffline ? 'animate-spin' : ''}`} />
+              <span>{isSyncingOffline ? 'Yuklanmoqda...' : `${pendingOfflineOrders} ta chekni sinxronlash`}</span>
+            </button>
+          )}
+
           {currentShift && currentShift.status === 'OPEN' ? (
             <>
               <div className="hidden sm:block text-right pr-3 border-r border-slate-200">
