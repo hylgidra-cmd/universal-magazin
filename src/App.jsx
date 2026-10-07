@@ -7,12 +7,18 @@ import { ProductManager } from './components/products/ProductManager';
 import { OrderHistory } from './components/orders/OrderHistory';
 import { DebtTracker } from './components/debts/DebtTracker';
 import { DirectorDashboard } from './components/director/DirectorDashboard';
+import { AdminAiAnalytics } from './components/admin/AdminAiAnalytics';
 import { authService } from './services/authService';
 import { productService } from './services/productService';
 import { categoryService } from './services/categoryService';
-import { DEMO_PRODUCTS, DEMO_CATEGORIES } from './data/demoStoreData';
+import { orderService } from './services/orderService';
+import { DEMO_PRODUCTS, DEMO_CATEGORIES, DEMO_ORDERS } from './data/demoStoreData';
 
-function getInitialRole() {
+function getInitialRole(user) {
+  if (user) {
+    if (user.role === 'CASHIER' || user.username === 'kassa' || user.username === 'kassir') return 'kassa';
+    if (user.role === 'DIRECTOR' || user.username === 'director') return 'director';
+  }
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
   if (path.includes('director') || hash.includes('director')) return 'director';
@@ -22,13 +28,14 @@ function getInitialRole() {
 
 function MainApp() {
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
-  const [currentRole, setCurrentRole] = useState(getInitialRole);
+  const [currentRole, setCurrentRole] = useState(() => getInitialRole(authService.getCurrentUser()));
   const [activeTab, setActiveTab] = useState(() => {
-    const role = getInitialRole();
+    const role = getInitialRole(authService.getCurrentUser());
     return role === 'director' ? 'director' : 'pos';
   });
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -39,7 +46,8 @@ function MainApp() {
   // Listen for browser URL changes (back/forward navigation)
   useEffect(() => {
     const handleUrlChange = () => {
-      const role = getInitialRole();
+      const user = authService.getCurrentUser();
+      const role = getInitialRole(user);
       setCurrentRole(role);
       if (role === 'director') setActiveTab('director');
       else if (role === 'kassa') setActiveTab('pos');
@@ -54,6 +62,12 @@ function MainApp() {
 
   // Sync role and update URL
   const handleRoleChange = (newRole) => {
+    if (currentUser?.role === 'CASHIER' || currentUser?.username === 'kassa') {
+      if (newRole !== 'kassa') {
+        toastRef.current.warning("Kassa xodimi uchun admin va direktor bo'limlari cheklangan.");
+        return;
+      }
+    }
     setCurrentRole(newRole);
     window.history.pushState(null, '', `/${newRole}`);
     if (newRole === 'director') {
@@ -62,6 +76,22 @@ function MainApp() {
       setActiveTab('pos');
     } else {
       setActiveTab('pos');
+    }
+  };
+
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+    const initialRole = getInitialRole(user);
+    setCurrentRole(initialRole);
+    if (initialRole === 'kassa') {
+      setActiveTab('pos');
+      window.history.replaceState(null, '', '/kassa');
+    } else if (initialRole === 'director') {
+      setActiveTab('director');
+      window.history.replaceState(null, '', '/director');
+    } else {
+      setActiveTab('pos');
+      window.history.replaceState(null, '', '/admin');
     }
   };
 
@@ -80,12 +110,14 @@ function MainApp() {
     else setSyncing(true);
 
     try {
-      const [fetchedProducts, fetchedCategories] = await Promise.all([
-        productService.getAllProducts(),
-        categoryService.getAllCategories(),
+      const [fetchedProducts, fetchedCategories, fetchedOrders] = await Promise.all([
+        productService.getAllProducts().catch(() => []),
+        categoryService.getAllCategories().catch(() => []),
+        orderService.getAllOrders().catch(() => []),
       ]);
       setProducts(fetchedProducts || []);
       setCategories(fetchedCategories || []);
+      setOrders(fetchedOrders || []);
       if (isSilent) toastRef.current.success("Ma'lumotlar yangilandi", 2000);
     } catch (err) {
       console.error('Failed to load catalog:', err);
@@ -103,7 +135,7 @@ function MainApp() {
   }, [currentUser, loadCatalog]);
 
   if (!currentUser) {
-    return <LoginPage onLoginSuccess={(user) => setCurrentUser(user)} />;
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
@@ -131,6 +163,7 @@ function MainApp() {
             {(() => {
               const displayProducts = products.length > 0 ? products : DEMO_PRODUCTS;
               const displayCategories = categories.length > 0 ? categories : DEMO_CATEGORIES;
+              const displayOrders = orders.length > 0 ? orders : DEMO_ORDERS;
 
               return (
                 <>
@@ -139,6 +172,15 @@ function MainApp() {
                       products={displayProducts}
                       categories={displayCategories}
                       onRefresh={() => loadCatalog(true)}
+                    />
+                  )}
+
+                  {activeTab === 'ai' && (
+                    <AdminAiAnalytics
+                      products={displayProducts}
+                      orders={displayOrders}
+                      onNavigateToProducts={() => setActiveTab('products')}
+                      onNavigateToPos={() => setActiveTab('pos')}
                     />
                   )}
 
