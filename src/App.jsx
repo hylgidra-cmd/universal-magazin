@@ -8,6 +8,7 @@ import { OrderHistory } from './components/orders/OrderHistory';
 import { DebtTracker } from './components/debts/DebtTracker';
 import { DirectorDashboard } from './components/director/DirectorDashboard';
 import { AdminAiAnalytics } from './components/admin/AdminAiAnalytics';
+import { NetworkStatusCornerWidget } from './components/ui/NetworkStatusCornerWidget';
 import { authService } from './services/authService';
 import { productService } from './services/productService';
 import { categoryService } from './services/categoryService';
@@ -244,6 +245,9 @@ function MainApp() {
           </>
         )}
       </main>
+
+      {/* Floating Corner Network & 10-Min Auto-Refresh Widget */}
+      <NetworkStatusCornerWidget onRefreshCatalog={() => loadCatalog(true)} />
     </div>
   );
 }

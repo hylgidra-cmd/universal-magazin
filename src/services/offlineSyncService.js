@@ -11,6 +11,26 @@ export const offlineSyncService = {
     return typeof navigator !== 'undefined' ? navigator.onLine : true;
   },
 
+  // Perform active ping check to verify true internet connectivity
+  async checkRealConnection() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return false;
+    }
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      await fetch('/favicon.ico?_ping=' + Date.now(), {
+        method: 'HEAD',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
   // Cache catalog in LocalStorage for offline startup
   cacheCatalog(products, categories) {
     try {
@@ -173,3 +193,4 @@ export const offlineSyncService = {
     };
   },
 };
+
